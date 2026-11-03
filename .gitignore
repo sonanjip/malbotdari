@@ -1,0 +1,49 @@
+# Build / IDE
+*.iml
+.gradle/
+.idea/
+/build/
+**/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+/local.properties
+.DS_Store
+
+# Models and databases (large, downloaded at runtime)
+*.gguf
+*.tflite
+*.onnx
+*.litertlm
+*.task
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.xnnpack_cache
+
+# Test fixtures: images are generated/downloaded, not committed (see scripts/fetch-photo-fixtures.sh, make-text-fixtures.py)
+/test-fixtures/images/*
+!/test-fixtures/images/.gitkeep
+/test-fixtures/docs/*
+/test-fixtures/media/*
+/test-fixtures/faces/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.heic
+
+# Leftovers of builds before 0.8.0 (models moved to OndolSaem)
+/app/libs/*.aar
+/app/src/main/assets/*.onnx
+
+# Local Claude Code state
+.claude/settings.local.json
+!docs/images/*.png
+.claude/settings.json
+.codex/
+/app/src/main/assets/licenses.txt
+*.jks
+*.keystore
