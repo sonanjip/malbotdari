@@ -177,7 +177,9 @@ class ChatController(
                 if (task != null) extra.append(SCHEDULED_NOTE).append(if (actions != null) SCHEDULED_ACTIONS_NOTE else "").append(extraContext).append('\n')
                 else if (session.autoSearch && text.isNotBlank()) extra.append(autoSearchBlock(text))
                 // The clock changes every turn, so it rides with the message instead of the (cached) system prompt.
-                val modelText = "[Current time: ${nowStamp()}]\n" + if (extra.isEmpty()) text else "$extra\n$text"
+                // a due task is phrased as an order for now, so the model does not take it as a new request to schedule
+                val asked = if (task != null) "Due now, do this: $text" else text
+                val modelText = "[Current time: ${nowStamp()}]\n" + if (extra.isEmpty()) asked else "$extra\n$asked"
 
                 val firstMessage = chat.messageCount(sessionId) == 0
                 chat.insertMessage(
@@ -361,7 +363,8 @@ class ChatController(
         private const val PHOTO_UNSUPPORTED = "[A photo is attached, but this chat model cannot see images.]\n\n"
         private const val JUDGE_SYSTEM = "You check files against a condition. Reply with only the item_id numbers of the files that clearly match, " +
             "separated by commas, or the word NONE. No other words."
-        private const val SCHEDULED_NOTE = "[This is a scheduled task running now without the user present. Carry out the instruction and write the result as a message to the user.]\n"
+        private const val SCHEDULED_NOTE = "[This is a scheduled task the user set up earlier, and it is due now; the user is not present. Do not schedule anything: " +
+            "carry out the instruction below right now and write the result as a message to the user (for a reminder, write the reminder itself, e.g. \"Time to stretch!\").]\n"
         private const val SCHEDULED_ACTIONS_NOTE = "[Tools that add events or contacts or move or delete files only create cards the user approves later; never say they are done.]\n"
         private const val TOO_MANY_CALLS = "I stopped because I called tools too many times without an answer."
     }

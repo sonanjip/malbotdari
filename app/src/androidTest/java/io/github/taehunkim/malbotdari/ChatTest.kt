@@ -329,7 +329,7 @@ class ChatTest {
         val offered = model.calls.single().tools
         assertTrue("search and read are offered", ChatToolNames.SEARCH in offered && ChatToolNames.READ in offered)
         assertTrue("a task cannot schedule tasks", offered.none { it.endsWith("scheduled_task") || it == ChatToolNames.SCHEDULE })
-        assertTrue(model.calls.single().user.text.contains("scheduled task"))
+        assertTrue(model.calls.single().user.text.contains("scheduled task")); assertTrue("a due task is an order for now", model.calls.single().user.text.contains("Due now, do this: "))
         assertEquals(listOf(Triple(id, "Three photos from yesterday.", true)), notified)
         val t = db.taskDao().get(id)!!
         assertEquals(TaskResult.OK, t.lastResult); assertEquals(TaskStatus.ACTIVE, t.status)

@@ -14,7 +14,7 @@ class ScheduleTaskTool(private val tasks: TaskManager, private val sessionId: Lo
             "Write instruction so it makes sense on its own (the task runs without the user and can search and read files)."
     override val parameters = """{"type":"object","properties":{
         "trigger":{"type":"string","description":"time or file."},
-        "instruction":{"type":"string","description":"What to do each time, e.g. 'Summarize the photos taken today'."},
+        "instruction":{"type":"string","description":"What you will do when it runs, as an order to yourself, e.g. 'Summarize the photos taken today' or, for a reminder, 'Tell the user it is time to drink water'."},
         "repeat":{"type":"string","description":"time only: once, every_minutes, daily or weekly."},
         "at":{"type":"string","description":"time only: local time of day HH:mm (daily, weekly, once with date)."},
         "weekdays":{"type":"string","description":"weekly only: comma separated mon,tue,wed,thu,fri,sat,sun."},
