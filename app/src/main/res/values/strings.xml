@@ -161,6 +161,7 @@
     <string name="task_when_every">Every %1$d minutes</string>
     <string name="task_when_file">When a new file is indexed</string>
     <string name="task_when_file_kinds">When a new %1$s file is indexed</string>
+    <string name="task_when_file_any_match">When a new file matching “%1$s” is indexed</string>
     <string name="task_when_file_match">When a new %1$s file matching “%2$s” is indexed</string>
     <string name="task_when_once">Once, %1$s</string>
     <string name="task_when_weekly">Every %1$s at %2$s</string>

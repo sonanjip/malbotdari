@@ -161,6 +161,7 @@
     <string name="task_when_every">%1$d분마다</string>
     <string name="task_when_file">새 파일이 인덱싱될 때마다</string>
     <string name="task_when_file_kinds">새 %1$s 파일이 인덱싱될 때마다</string>
+    <string name="task_when_file_any_match">“%1$s”와 관련된 새 파일이 인덱싱될 때마다</string>
     <string name="task_when_file_match">“%2$s”와 관련된 새 %1$s 파일이 인덱싱될 때마다</string>
     <string name="task_when_once">한 번, %1$s</string>
     <string name="task_when_weekly">매주 %1$s %2$s</string>

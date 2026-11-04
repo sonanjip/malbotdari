@@ -63,6 +63,7 @@ fun taskWhenText(t: ScheduledTaskEntity): String {
                 if ("video" in kinds) add(stringResource(R.string.task_kind_video))
             }.joinToString("/")
             when {
+                t.fileQuery.isNotEmpty() && names.isEmpty() -> stringResource(R.string.task_when_file_any_match, TaskManager.alternatives(t.fileQuery).joinToString(" / "))
                 t.fileQuery.isNotEmpty() -> stringResource(R.string.task_when_file_match, names, TaskManager.alternatives(t.fileQuery).joinToString(" / "))
                 names.isNotEmpty() -> stringResource(R.string.task_when_file_kinds, names)
                 else -> stringResource(R.string.task_when_file)

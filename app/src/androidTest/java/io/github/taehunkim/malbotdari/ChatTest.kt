@@ -449,6 +449,14 @@ class ChatTest {
         assertNull("a silent rejection is not a run", db.taskDao().get(id)!!.lastResult)
     }
 
+    @Test fun aFileTaskSummaryReadsNaturallyWithAndWithoutKinds() = runBlocking {
+        val chat = controller.newSession()
+        val any = JSONObject(tasks.propose(chat, JSONObject().put("trigger", "file").put("instruction", "x").put("query", "receipt"))).getString("summary")
+        assertTrue(any, any.startsWith("whenever a new file matching \"receipt\" is indexed"))
+        val img = JSONObject(tasks.propose(chat, JSONObject().put("trigger", "file").put("instruction", "x").put("query", "receipt").put("kinds", "photo"))).getString("summary")
+        assertTrue(img, img.startsWith("whenever a new image file matching"))
+    }
+
     @Test fun aFileTaskNeedsAQueryUnlessEveryFileIsMeant() = runBlocking {
         val chat = controller.newSession()
         val noQuery = JSONObject().put("trigger", "file").put("instruction", "x").put("kinds", "image")

@@ -386,8 +386,8 @@ class TaskManager(
     fun describe(t: ScheduledTaskEntity): String {
         val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
         val whenText = when (t.trigger) {
-            TaskTrigger.FILE -> "whenever a new " + (t.fileKinds.ifEmpty { "file" }.lowercase()) +
-                (if (t.fileQuery.isEmpty()) " file is indexed" else " file matching \"${t.fileQuery}\" is indexed")
+            TaskTrigger.FILE -> "whenever a new " + (t.fileKinds.lowercase().let { if (it.isEmpty()) "" else "$it " }) +
+                (if (t.fileQuery.isEmpty()) "file is indexed" else "file matching \"${t.fileQuery}\" is indexed")
             TaskTrigger.TIME -> when (t.repeat) {
                 TaskRepeat.ONCE -> "once at " + fmt.format(Date(t.onceAtMs ?: 0))
                 TaskRepeat.EVERY_MINUTES -> "every ${t.intervalMinutes} minutes"
