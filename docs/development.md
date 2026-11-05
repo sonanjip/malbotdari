@@ -4,14 +4,14 @@
 
 One Gradle module, `app` (package and applicationId `io.github.taehunkim.malbotdari`). Scripts in `scripts/` (`env.sh`, `run.sh`, `screenshot.sh`, `logcat.sh`, `emu-start.sh`, `emu-stop.sh`) work like Nunsori's.
 
-## SDKs (OndolSaem, Nunsori)
+## SDKs (OndolSaem, Nunsori, Jogakbo)
 
-Both client SDKs come from JitPack: `com.github.TaeHunKim:ondolsaem:<tag>` and `com.github.TaeHunKim:Nunsori:<tag>` (`ondolsaemSdk`, `nunsoriSdk` in `gradle/libs.versions.toml`). To build against sibling checkouts, put `ondolsaem.dir=../ondolsaem` and `nunsori.dir=../nunsori` in `local.properties`: `settings.gradle.kts` then includes them as composite builds and substitutes the modules with their `:sdk` projects. Until the first Nunsori SDK tag (`sdk-v0.1.0`) is published, `nunsori.dir` is required.
+Both client SDKs come from JitPack: `com.github.TaeHunKim:ondolsaem:<tag>` and `com.github.TaeHunKim:Nunsori:<tag>` (`ondolsaemSdk`, `nunsoriSdk` in `gradle/libs.versions.toml`). The Jogakbo SDK is `com.github.TaeHunKim:jogakbo:<tag>` (`jogakboSdk`). To build against sibling checkouts, put `ondolsaem.dir=../ondolsaem`, `nunsori.dir=../nunsori` and `jogakbo.dir=../jogakbo` in `local.properties`: `settings.gradle.kts` then includes them as composite builds and substitutes the modules with their `:sdk` projects. Until the first Nunsori and Jogakbo SDK tags (`sdk-v0.1.0`) are published, `nunsori.dir` and `jogakbo.dir` are required.
 
 ## Testing
 
 - Unit tests: `./gradlew testDebugUnitTest` (schedule math, context budget, previews, payloads, string parity).
-- Instrumented: `ChatTest` (controller, tools, tasks, cards with a fake Nunsori index `FakeFileIndex` and a fake chat model), `NavigationTest` (first run, settings, up arrow), `NunsoriBridgeTest` (against the Nunsori installed on the device; skipped without it). Run them with `adb shell am instrument -w io.github.taehunkim.malbotdari.test/androidx.test.runner.AndroidJUnitRunner` after `installDebug installDebugAndroidTest`, or `./gradlew connectedDebugAndroidTest` (which uninstalls the app afterwards).
+- Instrumented: `ChatTest` (controller, tools, tasks, cards with a fake Nunsori index `FakeFileIndex` and a fake chat model), `NavigationTest` (first run, settings, up arrow), `NunsoriBridgeTest` and `JogakboBridgeTest` (against the Nunsori / Jogakbo installed on the device; skipped without them); `ChatTest` uses `FakeNotesSource` for the notes tools. Run them with `adb shell am instrument -w io.github.taehunkim.malbotdari.test/androidx.test.runner.AndroidJUnitRunner` after `installDebug installDebugAndroidTest`, or `./gradlew connectedDebugAndroidTest` (which uninstalls the app afterwards).
 - E2E with real models: install OndolSaem (with a chat model) and Nunsori (with an index); same debug key, so no approval prompts.
 
 ## Release build

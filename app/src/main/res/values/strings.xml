@@ -168,4 +168,14 @@
     <string name="tasks_none">No scheduled tasks in this chat. Ask for one, for example “every day at 9 summarize the photos from yesterday”.</string>
     <string name="tasks_open">Scheduled tasks</string>
     <string name="tasks_title">Scheduled tasks</string>
+    <string name="chat_tool_notes">Search notes (Jogakbo)</string>
+    <string name="chat_tool_ran_notes">Searched notes for “%1$s” · %2$d results</string>
+    <string name="chat_tool_ran_read_note">Read note %1$s</string>
+    <string name="conn_jogakbo_title">Jogakbo (your notes, optional)</string>
+    <string name="conn_jogakbo_desc">Lets the assistant search and read your notes in Jogakbo: memos, saved web pages and videos, recordings and their summaries.</string>
+    <string name="conn_jogakbo_ready">Connected · Jogakbo %1$s</string>
+    <string name="conn_jogakbo_not_installed">Not installed: note search is off.</string>
+    <string name="conn_jogakbo_too_old">Jogakbo is too old for this app.</string>
+    <string name="conn_not_approved_jogakbo">Waiting for your OK in Jogakbo (Settings › Connections).</string>
+    <string name="conn_open_jogakbo">Open Jogakbo</string>
 </resources>

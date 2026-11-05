@@ -168,4 +168,14 @@
     <string name="tasks_none">이 채팅에는 예약된 작업이 없습니다. 예를 들어 “매일 9시에 어제 찍은 사진 요약해줘”라고 부탁해 보세요.</string>
     <string name="tasks_open">예약된 작업</string>
     <string name="tasks_title">예약된 작업</string>
+    <string name="chat_tool_notes">노트 검색 (조각보)</string>
+    <string name="chat_tool_ran_notes">“%1$s” 노트 검색 · 결과 %2$d건</string>
+    <string name="chat_tool_ran_read_note">노트 %1$s 읽음</string>
+    <string name="conn_jogakbo_title">조각보 (내 노트, 선택)</string>
+    <string name="conn_jogakbo_desc">조각보의 노트(메모, 저장한 웹페이지·영상, 녹음과 그 요약)를 검색하고 읽을 수 있게 합니다.</string>
+    <string name="conn_jogakbo_ready">연결됨 · 조각보 %1$s</string>
+    <string name="conn_jogakbo_not_installed">설치되지 않아 노트 검색이 꺼져 있습니다.</string>
+    <string name="conn_jogakbo_too_old">조각보 버전이 너무 낮습니다.</string>
+    <string name="conn_not_approved_jogakbo">조각보에서 허용을 기다리는 중입니다(설정 › 연결).</string>
+    <string name="conn_open_jogakbo">조각보 열기</string>
 </resources>

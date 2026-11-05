@@ -47,6 +47,7 @@ fun SettingsScreen() {
         Section(R.string.settings_connections, R.string.settings_connections_desc)
         OndolSaemCard()
         NunsoriCard()
+        JogakboCard()
         HorizontalDivider()
 
         val savedPrompt by c.settings.chatCustomPrompt.collectAsStateWithLifecycle("")

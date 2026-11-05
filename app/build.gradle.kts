@@ -5,7 +5,7 @@ plugins {
 }
 
 // Single place to bump the app version: major.minor.patch, versionCode = major*10000 + minor*100 + patch.
-val appVersionName = "0.1.0"
+val appVersionName = "0.2.0"
 val appVersionCode = appVersionName.split(".").let { (a, b, c) -> a.toInt() * 10000 + b.toInt() * 100 + c.toInt() }
 
 android {
@@ -69,9 +69,10 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.commonmark)
     implementation(libs.commonmark.tables)
-    // The chat model runs in OndolSaem; the files and their index live in Nunsori. Both are reached through their SDKs.
+    // The chat model runs in OndolSaem; the files and their index live in Nunsori, the notes in Jogakbo. All are reached through their SDKs.
     implementation(libs.ondolsaem.sdk)
     implementation(libs.nunsori.sdk)
+    implementation(libs.jogakbo.sdk)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.core)
 

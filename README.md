@@ -9,6 +9,7 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 | Chat | **Malbotdari** (this repository) | Conversations, scheduled tasks, approval cards |
 | AI model | [OndolSaem](https://github.com/TaeHunKim/ondolsaem) (required) | Downloads and runs the chat model (Gemma 4, Qwen2.5) on the phone |
 | Your files | [Nunsori](https://github.com/TaeHunKim/Nunsori) (optional) | Indexes photos, documents, audio and video; the assistant searches and reads them through it |
+| Your notes | [Jogakbo](https://github.com/TaeHunKim/jogakbo) (optional) | Memos, saved web pages and videos, recordings with summaries; the assistant searches and reads them through it |
 
 ## Features
 
@@ -16,6 +17,7 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 |---|---|
 | Chat | Per-chat history with pinning, Markdown answers with copy and share, your own instructions, attached photos for vision models |
 | Your files (with Nunsori) | Search and read indexed files, file previews under answers, people by the names you gave in Nunsori, "Ask in chat" from Nunsori's search |
+| Your notes (with Jogakbo) | Search and read notes and their summaries (`search_notes`, `read_note`); a tap on a found note opens it in Jogakbo |
 | Cards you approve | Calendar events and contacts (the system app opens prefilled), moving or trashing files (done by Nunsori) |
 | Scheduled tasks | Later, repeatedly or when Nunsori indexes a matching file; results posted to the chat and notified |
 | Privacy | No `INTERNET` permission; the companion apps are reached over Android's on-device IPC |
@@ -24,7 +26,7 @@ English and Korean UI, dark mode.
 
 ## Requirements
 
-Android 10 or newer (minSdk 29), OndolSaem with a chat model downloaded, Nunsori 0.10.0 or newer for file features.
+Android 10 or newer (minSdk 29), OndolSaem with a chat model downloaded, Nunsori 0.10.0 or newer for file features, Jogakbo 0.1.0 or newer for notes.
 
 ## Build
 

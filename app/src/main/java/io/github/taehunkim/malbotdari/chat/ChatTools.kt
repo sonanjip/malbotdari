@@ -3,6 +3,8 @@ package io.github.taehunkim.malbotdari.chat
 import io.github.taehunkim.malbotdari.chat.actions.ActionManager
 import io.github.taehunkim.malbotdari.data.db.ActionKind
 import io.github.taehunkim.malbotdari.files.FileIndex
+import io.github.taehunkim.malbotdari.notes.NotesSource
+import io.github.taehunkim.jogakbo.sdk.JogakboTool
 import io.github.taehunkim.malbotdari.ml.llm.ChatTool
 import io.github.taehunkim.nunsori.sdk.Confirmation
 import io.github.taehunkim.nunsori.sdk.NunsoriTool
@@ -25,12 +27,15 @@ object ChatToolNames {
     /** move_files is the switch for the move and delete tools (Nunsori prepares them, the user approves a card). */
     const val MOVE = "move_files"
     const val DELETE = "delete_files"
-    val ALL = listOf(SEARCH, READ, SCHEDULE, CALENDAR, MOVE)
+    /** Jogakbo's tools: search_notes is the switch for both. */
+    const val NOTES = "search_notes"
+    const val READ_NOTE = "read_note"
+    val ALL = listOf(SEARCH, READ, NOTES, SCHEDULE, CALENDAR, MOVE)
     /** Tools whose result carries an `action_id` (a card in the chat). */
     val ACTION_TOOLS = setOf(CALENDAR, CONTACT, MOVE, DELETE)
 
-    /** The chip that switches a Nunsori tool on or off. */
-    fun switchOf(tool: String): String = if (tool == DELETE) MOVE else tool
+    /** The chip that switches a Nunsori or Jogakbo tool on or off. */
+    fun switchOf(tool: String): String = when (tool) { DELETE -> MOVE; READ_NOTE -> NOTES; else -> tool }
 }
 
 /**
@@ -68,6 +73,19 @@ class NunsoriChatTool(
             val files = JSONArray(c.files.map { JSONObject().put("id", it.itemId).put("name", it.name).put("folder", it.folder) })
             return JSONObject().put("tool", tool).put("summary", c.summary).put("files", files).put("commit", c.payload)
                 .put("destination", p.optString("destination")).put("permanent", p.optBoolean("permanent"))
+        }
+    }
+}
+
+/** One of Jogakbo's tools (search and read the user's notes), run in Jogakbo. */
+class JogakboChatTool(private val spec: JogakboTool, private val notes: NotesSource) : ChatTool {
+    override val name = spec.name
+    override val description = spec.description
+    override val parameters = spec.parameters
+
+    override fun execute(args: JSONObject): String = runBlocking {
+        try { notes.runTool(name, args.toString()) } catch (e: Exception) {
+            "Error: the notes (Jogakbo) are not available: ${e.message ?: e.javaClass.simpleName}"
         }
     }
 }

@@ -11,6 +11,7 @@ It uses the components below. Versions come from [`gradle/libs.versions.toml`](g
 | Kotlin, kotlinx.coroutines, kotlinx.serialization | 2.4.21 / 1.11.0 / 1.12.0 | Apache-2.0 |
 | OndolSaem client SDK | sdk-v0.3.0 | Apache-2.0 |
 | Nunsori client SDK | sdk-v0.1.0 | Apache-2.0 |
+| Jogakbo client SDK | sdk-v0.1.0 | Apache-2.0 |
 | commonmark-java (+ GFM tables) | 0.32.0 | BSD-2-Clause |
 
 ## Models

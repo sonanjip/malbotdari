@@ -187,6 +187,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 DropdownMenu(toolsOpen, { toolsOpen = false }) {
                     listOf(
                         ChatToolNames.SEARCH to R.string.chat_tool_search, ChatToolNames.READ to R.string.chat_tool_read,
+                        ChatToolNames.NOTES to R.string.chat_tool_notes,
                         ChatToolNames.SCHEDULE to R.string.chat_tool_schedule, ChatToolNames.CALENDAR to R.string.chat_tool_actions,
                         ChatToolNames.MOVE to R.string.chat_tool_files,
                     ).forEach { (tool, label) ->
@@ -351,20 +352,33 @@ private fun ToolCard(m: ChatMessageEntity, onOpenItem: (Long) -> Unit) {
     val summary = when (m.toolName) {
         ChatToolNames.SEARCH -> stringResource(R.string.chat_tool_ran_search, args.optString("query"), found.size)
         ChatToolNames.READ -> stringResource(R.string.chat_tool_ran_read, runCatching { JSONObject(m.text).optString("name") }.getOrDefault("").ifEmpty { "#" + args.optLong("item_id") })
+        ChatToolNames.NOTES -> stringResource(R.string.chat_tool_ran_notes, args.optString("query"), found.size)
+        ChatToolNames.READ_NOTE -> stringResource(R.string.chat_tool_ran_read_note, runCatching { JSONObject(m.text).optString("title") }.getOrDefault("").ifEmpty { "#" + args.optLong("note_id") })
         else -> m.toolName.orEmpty()
     }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val isNotes = m.toolName == ChatToolNames.NOTES || m.toolName == ChatToolNames.READ_NOTE
+    val openNote: (Long) -> Unit = { id -> runCatching { ctx.startActivity(io.github.taehunkim.jogakbo.sdk.Jogakbo.openNoteIntent(id)) } }
+    val noteRead = remember(m.text) { if (m.toolName == ChatToolNames.READ_NOTE) runCatching { JSONObject(m.text) }.getOrNull() else null }
     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.clickable { open = !open }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(summary, style = MaterialTheme.typography.labelMedium)
             if (open) {
-                found.forEach { o ->
+                noteRead?.let { o -> Text(o.optString("title"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { openNote(o.optLong("note_id")) }.padding(vertical = 2.dp)) }
+                if (isNotes) found.forEach { o ->
+                    Text(
+                        o.optString("title") + (o.optString("created").takeIf { it.isNotEmpty() }?.let { " · ${it.take(10)}" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { openNote(o.optLong("note_id")) }.padding(vertical = 2.dp),
+                    )
+                } else found.forEach { o ->
                     Text(
                         "${o.optString("name")}${o.optString("page").takeIf { it.isNotEmpty() }?.let { " · p.$it" } ?: ""}${o.optString("time").takeIf { it.isNotEmpty() }?.let { " · $it" } ?: ""}",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable { onOpenItem(o.optLong("item_id")) }.padding(vertical = 2.dp),
                     )
                 }
-                if (found.isEmpty()) Text(m.text.take(400), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (found.isEmpty() && noteRead == null) Text(m.text.take(400), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

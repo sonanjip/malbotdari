@@ -25,6 +25,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.taehunkim.malbotdari.R
 import io.github.taehunkim.malbotdari.files.IndexState
 import io.github.taehunkim.malbotdari.files.NunsoriBridge
+import io.github.taehunkim.malbotdari.notes.JogakboBridge
+import io.github.taehunkim.malbotdari.notes.NotesState
+import io.github.taehunkim.jogakbo.sdk.Jogakbo
 import io.github.taehunkim.malbotdari.ml.HostState
 import io.github.taehunkim.malbotdari.ml.ModelHost
 import io.github.taehunkim.malbotdari.rememberContainer
@@ -84,6 +87,33 @@ fun NunsoriCard() {
             else -> stringResource(R.string.conn_open_nunsori) to { c.files.client.launchIntent()?.let { ctx.startActivity(it) }; Unit }
         },
         onCheck = { scope.launch { c.files.refresh() } },
+    )
+}
+
+/** Jogakbo: holds the user's notes (search and read). Optional. */
+@Composable
+fun JogakboCard() {
+    val c = rememberContainer()
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val s by c.notes.state.collectAsStateWithLifecycle()
+    val status = when (s.status) {
+        NotesState.Status.CONNECTED -> stringResource(R.string.conn_jogakbo_ready, s.version.orEmpty())
+        NotesState.Status.NOT_INSTALLED -> stringResource(R.string.conn_jogakbo_not_installed)
+        NotesState.Status.NOT_APPROVED -> stringResource(R.string.conn_not_approved_jogakbo)
+        NotesState.Status.TOO_OLD -> stringResource(R.string.conn_jogakbo_too_old)
+        NotesState.Status.UNKNOWN -> stringResource(R.string.conn_checking)
+        NotesState.Status.UNREACHABLE -> stringResource(R.string.conn_unreachable)
+    }
+    ConnectionCard(
+        "conn_jogakbo", stringResource(R.string.conn_jogakbo_title), stringResource(R.string.conn_jogakbo_desc), status,
+        ok = s.status == NotesState.Status.CONNECTED,
+        action = when (s.status) {
+            NotesState.Status.NOT_INSTALLED, NotesState.Status.TOO_OLD -> stringResource(R.string.conn_get) to { open(ctx, JogakboBridge.INSTALL_URL) }
+            NotesState.Status.NOT_APPROVED -> stringResource(R.string.conn_open_jogakbo) to { runCatching { ctx.startActivity(Jogakbo.approvalIntent()) }; Unit }
+            else -> stringResource(R.string.conn_open_jogakbo) to { c.notes.client.launchIntent()?.let { ctx.startActivity(it) }; Unit }
+        },
+        onCheck = { scope.launch { c.notes.refresh() } },
     )
 }
 

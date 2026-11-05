@@ -1,6 +1,6 @@
 # Chat
 
-An on-device assistant that answers questions, from your files when Nunsori is connected. Code: `chat/`, `ml/llm/`, `ui/chat/`; the file side is Nunsori's (`files/FileIndex`, `files/NunsoriBridge`).
+An on-device assistant that answers questions, from your files when Nunsori is connected and from your notes when Jogakbo is. Code: `chat/`, `ml/llm/`, `ui/chat/`; the file side is Nunsori's (`files/FileIndex`, `files/NunsoriBridge`).
 
 ## Sessions
 
@@ -80,3 +80,13 @@ Models are chosen and downloaded in OndolSaem; the first answer after loading a 
 - Small models can pick the wrong tool or arguments; Gemma 4 E2B called `search_index` and `read_file` correctly in the emulator test.
 - Answers are only as good as the index: files that are not indexed, or indexed without text, cannot be read.
 - Web search and fetching web pages are not available yet ([roadmap.md](roadmap.md)).
+
+## Notes (Jogakbo)
+
+With Jogakbo installed (0.1.0 or newer, same signing key or allowed in Jogakbo › Settings › Connections), the
+*Search notes* checkbox offers Jogakbo's tools as they are (`NotesSource.tools`, `JogakboChatTool`):
+`search_notes(query?, kinds?, date_from?, date_to?, limit?)` (memo, link, youtube, audio; by meaning and words in
+Jogakbo) and `read_note(note_id, offset?, max_chars?)` (title, summary, original as Markdown, in slices). The system
+prompt then tells the model to use them for things the user wrote down, saved, watched or recorded. Scheduled runs
+get them too when the chat has them on. Tool cards list the found notes; a tap opens the note in Jogakbo
+(`Jogakbo.openNoteIntent`). Write tools (adding notes from the chat) are planned in Jogakbo's roadmap.

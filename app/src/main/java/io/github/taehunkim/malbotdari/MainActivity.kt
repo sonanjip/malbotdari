@@ -33,7 +33,7 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         // Back from OndolSaem or Nunsori (a model downloaded, this app allowed): check again.
         val c = (application as MalbotdariApp).container
-        lifecycleScope.launch { c.models.refresh(); c.files.refresh() }
+        lifecycleScope.launch { c.models.refresh(); c.files.refresh(); c.notes.refresh() }
     }
 
     private fun handle(intent: Intent?) {

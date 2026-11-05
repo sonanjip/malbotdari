@@ -32,6 +32,8 @@ class AppContainer(val context: Context) {
     val models = ModelHost(context, settings, appScope)
     /** The user's files (Nunsori). */
     val files = NunsoriBridge(context)
+    /** The user's notes (Jogakbo). */
+    val notes = io.github.taehunkim.malbotdari.notes.JogakboBridge(context)
     val taskAlarms by lazy { TaskAlarms(context) }
     val taskManager: TaskManager by lazy {
         TaskManager(
@@ -41,7 +43,7 @@ class AppContainer(val context: Context) {
         )
     }
     val actions: ActionManager by lazy { ActionManager(db.actionDao(), files) }
-    val chat: ChatController by lazy { ChatController(context, db.chatDao(), files, models, settings, appScope, taskManager = taskManager, actions = actions) }
+    val chat: ChatController by lazy { ChatController(context, db.chatDao(), files, models, settings, appScope, taskManager = taskManager, actions = actions, notes = notes) }
 }
 
 class MalbotdariApp : Application() {
@@ -56,6 +58,7 @@ class MalbotdariApp : Application() {
         container.appScope.launch {
             container.models.refresh()
             container.files.refresh()
+            container.notes.refresh()
             // catch up on files Nunsori indexed while this app was not told (or not running)
             IndexChangedWorker.enqueue(this@MalbotdariApp)
         }

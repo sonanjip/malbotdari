@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import io.github.taehunkim.malbotdari.R
 import io.github.taehunkim.malbotdari.ui.settings.BackgroundAccessCards
 import io.github.taehunkim.malbotdari.ui.settings.NunsoriCard
+import io.github.taehunkim.malbotdari.ui.settings.JogakboCard
 import io.github.taehunkim.malbotdari.ui.settings.OndolSaemCard
 
 /** First run: what the app is, the two companion apps (OndolSaem required, Nunsori optional), background access. */
@@ -48,6 +49,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                     Text(stringResource(R.string.onb_apps_body), style = MaterialTheme.typography.bodyMedium)
                     OndolSaemCard()
                     NunsoriCard()
+                    JogakboCard()
                 }
                 else -> {
                     Text(stringResource(R.string.onb_bg_title), style = MaterialTheme.typography.headlineSmall)

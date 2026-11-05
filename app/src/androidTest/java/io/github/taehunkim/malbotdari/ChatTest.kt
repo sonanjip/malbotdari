@@ -71,6 +71,7 @@ class ChatTest {
     /** Whether the (fake) chat model is available, as OndolSaem would report it. */
     private var modelPresent = true
     private val files = FakeFileIndex()
+    private val notes = FakeNotesSource()
     private var cursorValue = 0L
     private lateinit var controller: ChatController
     private var model = FakeChatModel()
@@ -97,7 +98,7 @@ class ChatTest {
             batteryLow = { lowBattery }, notifier = { t, text, ok -> notified += Triple(t.taskId, text, ok) }, enqueue = { enqueued += it },
             judgeFirst = { judgeFirstOn }, actionDao = db.actionDao(), cursor = { cursorValue }, setCursor = { cursorValue = it },
         )
-        controller = ChatController(ctx, db.chatDao(), files, residency, settings, scope, clock = { now }, taskManager = tasks, actions = actionManager)
+        controller = ChatController(ctx, db.chatDao(), files, residency, settings, scope, clock = { now }, taskManager = tasks, actions = actionManager, notes = notes)
     }
 
     @After fun tearDown() = runBlocking {
@@ -158,6 +159,36 @@ class ChatTest {
         assertEquals(listOf(ChatRole.USER, ChatRole.TOOL, ChatRole.ASSISTANT), db.chatDao().messages(id).map { it.role })
         assertEquals(ChatToolNames.SEARCH, db.chatDao().messages(id)[1].toolName)
         assertTrue("tool rows are not replayed", model.calls.single().history.isEmpty())
+    }
+
+    @Test fun notesToolsSearchAndReadJogakbo() = runBlocking {
+        val tea = notes.add("Tea guide", "- Green tea: 80 °C, 2 minutes", "Brew green tea at about eighty degrees.")
+        notes.add("Bike repair", "- Patch the tube", "Fix a flat tire.")
+        model = FakeChatModel { tools ->
+            val search = tools.single { it.name == ChatToolNames.NOTES }
+            val found = search.execute(JSONObject().put("query", "green tea"))
+            val id = org.json.JSONArray(found).getJSONObject(0).getLong("note_id")
+            val read = tools.single { it.name == ChatToolNames.READ_NOTE }.execute(JSONObject().put("note_id", id))
+            listOf(ChatEvent.ToolRan(ChatToolNames.NOTES, """{"query":"green tea"}""", found), ChatEvent.ToolRan(ChatToolNames.READ_NOTE, """{"note_id":$id}""", read), ChatEvent.Token("80 °C for 2 minutes."))
+        }
+        val id = controller.newSession()
+        sendAndWait(id, "How hot should green tea be?")
+        assertTrue(model.calls.single().tools.containsAll(listOf(ChatToolNames.NOTES, ChatToolNames.READ_NOTE)))
+        assertEquals(listOf("search_notes", "read_note"), notes.calls)
+        val msgs = db.chatDao().messages(id)
+        assertEquals(listOf(ChatRole.USER, ChatRole.TOOL, ChatRole.TOOL, ChatRole.ASSISTANT), msgs.map { it.role })
+        assertTrue(msgs[2].text.contains("eighty degrees"))
+        assertEquals(tea, JSONObject(msgs[2].text).getLong("note_id"))
+        // switched off: not offered
+        db.chatDao().setTools(id, ChatToolNames.SEARCH, false)
+        model = FakeChatModel()
+        sendAndWait(id, "again")
+        assertFalse(model.calls.single().tools.contains(ChatToolNames.NOTES))
+        // Jogakbo missing: not offered, the chat still works
+        notes.available = false
+        val other = controller.newSession()
+        sendAndWait(other, "hi")
+        assertFalse(model.calls.last().tools.contains(ChatToolNames.NOTES))
     }
 
     @Test fun onlyEnabledToolsAreOffered() = runBlocking {

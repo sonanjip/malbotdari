@@ -70,6 +70,8 @@ class ChatController(
     private val clock: () -> Long = System::currentTimeMillis,
     private val taskManager: TaskManager? = null,
     private val actions: ActionManager? = null,
+    /** Jogakbo's notes (search, read); offered when it is reachable. */
+    private val notes: io.github.taehunkim.malbotdari.notes.NotesSource? = null,
 ) {
     private val _run = MutableStateFlow<ChatRun?>(null)
     val run: StateFlow<ChatRun?> = _run.asStateFlow()
@@ -207,7 +209,7 @@ class ChatController(
                 val key = "$sessionId|${tools.joinToString { it.name }}|${custom.hashCode()}|${todayString()}|${names.hashCode()}"
                 _run.value = ChatRun(sessionId, ChatPhase.GENERATING, trimmed = history.dropped > 0)
                 var toolCalls = 0
-                model.reply(key, systemPrompt(custom, tools.any { it.name == ChatToolNames.CALENDAR }, tools.any { it.name == ChatToolNames.MOVE }, names), history.turns, ChatTurn(TurnRole.USER, modelText, images), tools).collect { e ->
+                model.reply(key, systemPrompt(custom, tools.any { it.name == ChatToolNames.CALENDAR }, tools.any { it.name == ChatToolNames.MOVE }, names, tools.any { it.name == ChatToolNames.NOTES }), history.turns, ChatTurn(TurnRole.USER, modelText, images), tools).collect { e ->
                     when (e) {
                         is ChatEvent.Token -> {
                             answer.append(e.text)
@@ -260,11 +262,19 @@ class ChatController(
             .filter { ChatToolNames.switchOf(it.name) in on && (!it.confirm || actions != null) }
             .map { NunsoriChatTool(it, files, actions, sessionId) }
 
+    /** Jogakbo's tools when the chat has notes switched on (none when Jogakbo is missing or has not allowed this app). */
+    private suspend fun noteTools(on: Set<String>): List<ChatTool> {
+        val n = notes ?: return emptyList()
+        if (ChatToolNames.NOTES !in on) return emptyList()
+        return runCatching { n.tools() }.getOrDefault(emptyList()).map { JogakboChatTool(it, n) }
+    }
+
     /** Search and read, plus the calendar/contact/file tools when the chat has them on: they only leave cards for the user to approve. */
     private suspend fun scheduledTools(session: ChatSessionEntity): List<ChatTool> {
         val on = session.enabledTools.split(',').toSet()
         return buildList {
             addAll(fileTools(on + ChatToolNames.SEARCH + ChatToolNames.READ, session.sessionId))
+            addAll(noteTools(on))
             if (actions != null && ChatToolNames.CALENDAR in on) { add(AddCalendarEventTool(actions, session.sessionId)); add(AddContactTool(actions, session.sessionId)) }
         }
     }
@@ -281,6 +291,7 @@ class ChatController(
         val on = session.enabledTools.split(',').toSet()
         return buildList {
             addAll(fileTools(on, session.sessionId))
+            addAll(noteTools(on))
             if (ChatToolNames.SCHEDULE in on && taskManager != null) {
                 add(ScheduleTaskTool(taskManager, session.sessionId))
                 add(ListScheduledTasksTool(taskManager, session.sessionId))
@@ -332,7 +343,7 @@ class ChatController(
         return "${fmt.format(Date(clock()))}, ${tz.id}"
     }
 
-    private fun systemPrompt(custom: String, withActions: Boolean, withFiles: Boolean, people: List<String> = emptyList()): String {
+    private fun systemPrompt(custom: String, withActions: Boolean, withFiles: Boolean, people: List<String> = emptyList(), withNotes: Boolean = false): String {
         return "You are Malbotdari, a private assistant that runs entirely on the user's phone. Today is ${todayString()} " +
             "(time zone ${TimeZone.getDefault().id}); work out words like today, yesterday or a year ago from it, " +
             "and give search_index date_from/date_to as YYYY-MM-DD (a query is optional when you filter by date or kind, e.g. to list yesterday's photos). " +
@@ -344,6 +355,8 @@ class ChatController(
                 (if (withFiles) ", move_files or delete_files (person instead of item_ids moves or deletes every photo of that person)" else "") + ". ") +
             "Answer from the user's own files when the question is about them: use the search_index tool to find files and read_file to read them, " +
             "if those tools are available. Name the files (and page or time) your answer is based on. " +
+            (if (withNotes) "The user's notes (memos, saved web pages, YouTube videos and recordings, each with a summary) are in Jogakbo: " +
+                "use search_notes to find notes and read_note to read one when the question is about something they wrote down, saved, watched or recorded; name the notes you used. " else "") +
             "If nothing relevant is found, say so instead of guessing. Keep answers concise and reply in the language the user writes in." +
             (if (custom.isEmpty()) "" else "\n\nThe user's own instructions (follow them unless they conflict with the rules above):\n$custom")
     }

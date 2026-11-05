@@ -2,7 +2,7 @@
 
 ## Planned
 
-1. **More apps as tool sources.** Nunsori is the first app whose tools the chat uses (`FileIndex`). A notes app (see Nunsori's roadmap) should offer its own tools through a similar contract; the chat would then list tools per connected app.
+1. **More apps as tool sources.** Nunsori (`FileIndex`) and, since 0.2.0, Jogakbo (`NotesSource`: search and read notes) offer their tools. Next: Jogakbo's write tools (add a note from the chat, confirmed with a card) and a common "tool source" layer so a new app does not need its own bridge and chat code.
 2. **Web tools (lowest priority).** Web search and fetching a page for the chat model. They go against the on-device principle (queries and page requests would leave the phone), so they come after the rest. If built: off by default, a clear disclosure of what leaves the device, a search API choice, and the network part in a separate component, since this app has no `INTERNET` permission.
 3. **Restore from trash** for documents Nunsori moved to `.LSA_Trash`.
 
