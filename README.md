@@ -4,6 +4,12 @@
 
 An on-device chat assistant for Android: no account, no internet, nothing leaves the phone. **말벗** is someone to talk to, **다리** a bridge: the assistant bridges your apps. *My Assistant, Local, Bridging Other Tools · Dialog Across Records & Indexes.*
 
+<p>
+<img src="docs/images/demo.gif" width="260" alt="The assistant searches the files indexed by Nunsori and answers with the release date from the meeting notes">
+</p>
+
+*The assistant searches your files through Nunsori and answers from them, on the phone.*
+
 | Part | App | What it does |
 |---|---|---|
 | Chat | **Malbotdari** (this repository) | Conversations, scheduled tasks, approval cards |
