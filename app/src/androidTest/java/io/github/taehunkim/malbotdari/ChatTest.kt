@@ -81,6 +81,13 @@ class ChatTest {
     private var now = 1_800_000_000_000L
     private var lowBattery = false
     private var judgeFirstOn = true
+    private var matchModeValue = io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode.EMBEDDING
+    private var unsureValue = io.github.taehunkim.malbotdari.chat.schedule.UnsureAction.ASK_LLM
+    /** Fake decision model: yes for "receipt", unsure for "maybe", no otherwise; null = not available. */
+    private var decideFn: ((String, List<String>) -> FloatArray?)? = { premise, hs ->
+        FloatArray(hs.size) { if ("receipt" in premise) 0.9f else if ("maybe" in premise) 0.5f else 0.1f }
+    }
+    private val decided = ArrayList<String>()
     private val notified = ArrayList<Triple<Long, String, Boolean>>()
     private val enqueued = ArrayList<Long>()
 
@@ -97,6 +104,8 @@ class ChatTest {
             ctx, db.taskDao(), db.chatDao(), files, alarms, { controller }, clock = { now },
             batteryLow = { lowBattery }, notifier = { t, text, ok -> notified += Triple(t.taskId, text, ok) }, enqueue = { enqueued += it },
             judgeFirst = { judgeFirstOn }, actionDao = db.actionDao(), cursor = { cursorValue }, setCursor = { cursorValue = it },
+            matchMode = { matchModeValue }, unsureAction = { unsureValue },
+            decide = { p, h -> decided += p; decideFn?.invoke(p, h) },
         )
         controller = ChatController(ctx, db.chatDao(), files, residency, settings, scope, clock = { now }, taskManager = tasks, actions = actionManager, notes = notes)
     }
@@ -512,6 +521,85 @@ class ChatTest {
         cursorValue -= 1 // read the invitation again
         tasks.onIndexChanged()
         assertTrue("with the setting off only the match counts", enqueued.isEmpty())
+    }
+
+    /** Adds a receipt, an unsure file, a no and a photo without text; returns their ids. */
+    private suspend fun decisionFiles(): List<Long> {
+        now += 1_000
+        return listOf(
+            addItem("lunch.txt", ItemKind.TEXT, seg(SegmentType.TEXT_CHUNK, 0, "card receipt 12,000 won"), indexedAt = now),
+            addItem("maybe.txt", ItemKind.TEXT, seg(SegmentType.TEXT_CHUNK, 0, "maybe a payment"), indexedAt = now),
+            addItem("trip.txt", ItemKind.TEXT, seg(SegmentType.TEXT_CHUNK, 0, "beach trip plan"), indexedAt = now),
+            addItem("photo.png", ItemKind.IMAGE, indexedAt = now),
+        )
+    }
+
+    private suspend fun decisionTask(): Long {
+        matchModeValue = io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode.DECISION
+        val chat = controller.newSession()
+        val args = JSONObject().put("trigger", "file").put("instruction", "Log it").put("query", "receipt|invoice")
+        return JSONObject(tasks.propose(chat, args)).getLong("task_id").also { tasks.confirm(it) }
+    }
+
+    @Test fun decisionModeAsksTheDecisionModelAboutEveryNewFileWithText() = runBlocking {
+        judgeFirstOn = false
+        unsureValue = io.github.taehunkim.malbotdari.chat.schedule.UnsureAction.DROP
+        val id = decisionTask()
+        val (lunch, maybe, trip, photo) = decisionFiles()
+        tasks.onIndexChanged()
+        assertEquals("all new files are candidates", listOf(lunch, maybe, trip, photo).joinToString(","), db.taskDao().get(id)!!.pendingItemIds)
+        model = FakeChatModel { listOf(ChatEvent.Token("Logged.")) }
+        tasks.run(id)
+        assertEquals("three files with text were decided", 3, decided.size)
+        assertTrue("the file name is part of what the model reads", decided[0].startsWith("lunch.txt\n"))
+        assertEquals("no check by the chat model, only the run", 1, model.calls.size)
+        val listed = model.calls.single().user.text
+        assertTrue(listed, listed.contains("lunch.txt") && !listed.contains("maybe.txt") && !listed.contains("trip.txt") && !listed.contains("photo.png"))
+    }
+
+    @Test fun unsureDecisionsGoToTheAssistantOrAreKeptBySetting() = runBlocking {
+        judgeFirstOn = false
+        val id = decisionTask()
+        val all = decisionFiles()
+        val maybe = all[1]
+        tasks.onIndexChanged()
+        model = FakeChatModel { tools -> if (tools.isEmpty()) listOf(ChatEvent.Token("$maybe")) else listOf(ChatEvent.Token("Logged.")) }
+        tasks.run(id)
+        assertEquals("the check saw only the unsure file", 2, model.calls.size)
+        assertTrue(model.calls[0].user.text.contains("maybe.txt") && !model.calls[0].user.text.contains("trip.txt"))
+        assertTrue(model.calls[1].user.text.contains("maybe.txt") && model.calls[1].user.text.contains("lunch.txt"))
+
+        unsureValue = io.github.taehunkim.malbotdari.chat.schedule.UnsureAction.KEEP
+        db.taskDao().setPending(id, all.joinToString(","))
+        model = FakeChatModel { listOf(ChatEvent.Token("Logged.")) }
+        tasks.run(id)
+        assertEquals("kept without asking", 1, model.calls.size)
+        assertTrue(model.calls[0].user.text.contains("maybe.txt"))
+    }
+
+    @Test fun withFewFilesTheAssistantChecksEveryAnswerThatIsNotAClearYes() = runBlocking {
+        judgeFirstOn = true
+        unsureValue = io.github.taehunkim.malbotdari.chat.schedule.UnsureAction.DROP
+        val id = decisionTask()
+        val (_, _, trip, _) = decisionFiles()
+        tasks.onIndexChanged()
+        model = FakeChatModel { tools -> if (tools.isEmpty()) listOf(ChatEvent.Token("$trip")) else listOf(ChatEvent.Token("Logged.")) }
+        tasks.run(id)
+        val check = model.calls[0].user.text
+        assertTrue(check, check.contains("maybe.txt") && check.contains("trip.txt") && !check.contains("lunch.txt"))
+        assertTrue(model.calls[1].user.text.contains("trip.txt"))
+    }
+
+    @Test fun withoutTheDecisionModelTheMeaningMatchIsUsed() = runBlocking {
+        judgeFirstOn = false
+        decideFn = null
+        val id = decisionTask()
+        decisionFiles()
+        tasks.onIndexChanged()
+        model = FakeChatModel { tools -> if (tools.isEmpty()) listOf(ChatEvent.Token("NONE")) else listOf(ChatEvent.Token("Logged.")) }
+        tasks.run(id)
+        val check = model.calls[0].user.text
+        assertTrue("only the word match reaches the check: $check", check.contains("lunch.txt") && !check.contains("maybe.txt") && !check.contains("trip.txt"))
     }
 
     @Test fun anyAlternativeOfAFileTaskQueryCanMatch() = runBlocking {

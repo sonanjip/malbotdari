@@ -109,6 +109,24 @@ class ModelHost(
         return if (s.status == HostState.Status.CONNECTED) s.model(category) else refresh().model(category)
     }
 
+    /**
+     * OndolSaem's decision model: P(yes) per hypothesis for [premise], or null when it cannot be used (host older
+     * than API 3, model not downloaded, host unreachable).
+     */
+    suspend fun entail(premise: String, hypotheses: List<String>): FloatArray? {
+        decideOverride?.let { return it(premise, hypotheses) }
+        return try {
+            if (!client.supports(OndolSaem.Api.V3)) null else client.entail(premise, hypotheses, OndolSaem.PRIORITY_BACKGROUND)
+        } catch (e: HostCallException) {
+            Log.i(TAG, "decision failed: ${e.code} ${e.message}"); null
+        } catch (e: HostUnavailableException) {
+            Log.i(TAG, "decision unavailable: ${e.reason}"); null
+        }
+    }
+
+    /** Test hook for [entail]. */
+    var decideOverride: (suspend (String, List<String>) -> FloatArray?)? = null
+
     private suspend fun hostLease(category: String): HostLease? = try {
         client.acquire(category)
     } catch (e: HostCallException) {

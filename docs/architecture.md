@@ -20,7 +20,7 @@ Malbotdari ──(Jogakbo SDK, INotes)──> Jogakbo : search_notes, read_note
 | `notes/` | `NotesSource` (the notes as the chat sees them), `JogakboBridge` (Jogakbo SDK client + connection state) |
 | `ml/` | `ModelHost` (OndolSaem client: chat model leases, host state), `ml/llm/ChatModel` |
 | `data/db` | Room: `chat_sessions`, `chat_messages`, `scheduled_tasks`, `pending_actions` (`AppDatabase.VERSION` 1) |
-| `data/prefs` | `SettingsStore` (chat model id mirror, custom prompt, judge-first, onboarding, Nunsori change cursor) |
+| `data/prefs` | `SettingsStore` (chat model id mirror, custom prompt, judge-first, file match method and unsure action, onboarding, Nunsori change cursor) |
 | `ui/` | `AppScaffold` (chats → chat, settings; onboarding gate), `ui/chat`, `ui/settings` (connections, background access), `ui/onboarding` |
 
 ## Data model

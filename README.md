@@ -19,7 +19,7 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 | Your files (with Nunsori) | Search and read indexed files, file previews under answers, people by the names you gave in Nunsori, "Ask in chat" from Nunsori's search |
 | Your notes (with Jogakbo) | Search and read notes and their summaries (`search_notes`, `read_note`); a tap on a found note opens it in Jogakbo |
 | Cards you approve | Calendar events and contacts (the system app opens prefilled), moving or trashing files (done by Nunsori) |
-| Scheduled tasks | Later, repeatedly or when Nunsori indexes a matching file; results posted to the chat and notified |
+| Scheduled tasks | Later, repeatedly or when Nunsori indexes a matching file; results posted to the chat and notified. New files are matched by similarity or, if chosen in Settings, by OndolSaem's decision model (yes/no per file with text) |
 | Privacy | No `INTERNET` permission; the companion apps are reached over Android's on-device IPC |
 
 English and Korean UI, dark mode.

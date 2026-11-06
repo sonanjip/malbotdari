@@ -40,6 +40,8 @@ class AppContainer(val context: Context) {
             context, db.taskDao(), db.chatDao(), files, taskAlarms, { chat },
             judgeFirst = { settings.taskJudgeFirst.first() }, actionDao = db.actionDao(),
             cursor = { settings.indexCursor.first() }, setCursor = settings::setIndexCursor,
+            matchMode = { settings.fileMatchMode.first() }, unsureAction = { settings.decisionUnsure.first() },
+            decide = { premise, hypotheses -> models.entail(premise, hypotheses) },
         )
     }
     val actions: ActionManager by lazy { ActionManager(db.actionDao(), files) }

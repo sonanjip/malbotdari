@@ -178,4 +178,14 @@
     <string name="conn_jogakbo_too_old">Jogakbo is too old for this app.</string>
     <string name="conn_not_approved_jogakbo">Waiting for your OK in Jogakbo (Settings › Connections).</string>
     <string name="conn_open_jogakbo">Open Jogakbo</string>
+    <string name="settings_file_match_title">How new files are matched</string>
+    <string name="settings_file_match_desc">Similarity: Nunsori\'s meaning and word match. Decision model: OndolSaem\'s decision model answers yes or no for each new file that has text (documents, text recognized in photos, transcripts); files without text still use the similarity match.</string>
+    <string name="file_match_embedding">Similarity</string>
+    <string name="file_match_decision">Decision model</string>
+    <string name="file_match_no_model">The decision model is not downloaded in OndolSaem yet; until then the similarity match is used.</string>
+    <string name="settings_unsure_title">When the decision model is unsure</string>
+    <string name="settings_unsure_desc">With few new files and “Let the assistant judge new files” on, the assistant checks every answer that is not a clear yes.</string>
+    <string name="unsure_ask">Ask the assistant</string>
+    <string name="unsure_drop">Skip the file</string>
+    <string name="unsure_keep">Count as a match</string>
 </resources>

@@ -15,6 +15,8 @@ class SettingsStore(private val context: Context) {
     private val kChat = stringPreferencesKey("chat_model_id")
     private val kChatPrompt = stringPreferencesKey("chat_custom_prompt")
     private val kTaskJudgeFirst = booleanPreferencesKey("task_judge_first")
+    private val kFileMatch = stringPreferencesKey("task_file_match")
+    private val kUnsure = stringPreferencesKey("task_decision_unsure")
     private val kOnboarding = booleanPreferencesKey("onboarding_done")
     private val kIndexCursor = longPreferencesKey("nunsori_cursor")
 
@@ -29,6 +31,20 @@ class SettingsStore(private val context: Context) {
     /** Scheduled file tasks: let the chat model judge every new file (when there are few) instead of relying on the meaning match alone. */
     val taskJudgeFirst: Flow<Boolean> = context.dataStore.data.map { it[kTaskJudgeFirst] ?: true }
     suspend fun setTaskJudgeFirst(on: Boolean) { context.dataStore.edit { it[kTaskJudgeFirst] = on } }
+
+    /** Scheduled file tasks: meaning match (embeddings) or OndolSaem's decision model. */
+    val fileMatchMode: Flow<io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode> = context.dataStore.data.map { p ->
+        io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode.entries.firstOrNull { it.name == p[kFileMatch] }
+            ?: io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode.EMBEDDING
+    }
+    suspend fun setFileMatchMode(m: io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode) { context.dataStore.edit { it[kFileMatch] = m.name } }
+
+    /** Decision mode: what happens to files the decision model is unsure about. */
+    val decisionUnsure: Flow<io.github.taehunkim.malbotdari.chat.schedule.UnsureAction> = context.dataStore.data.map { p ->
+        io.github.taehunkim.malbotdari.chat.schedule.UnsureAction.entries.firstOrNull { it.name == p[kUnsure] }
+            ?: io.github.taehunkim.malbotdari.chat.schedule.UnsureAction.ASK_LLM
+    }
+    suspend fun setDecisionUnsure(a: io.github.taehunkim.malbotdari.chat.schedule.UnsureAction) { context.dataStore.edit { it[kUnsure] = a.name } }
 
     val onboardingDone: Flow<Boolean> = context.dataStore.data.map { it[kOnboarding] ?: false }
     suspend fun setOnboardingDone(done: Boolean) { context.dataStore.edit { it[kOnboarding] = done } }

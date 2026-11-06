@@ -4,11 +4,11 @@ Malbotdari runs entirely on the phone. It has **no `INTERNET` permission**, no a
 
 ## What is stored, and where
 
-In the app's private storage: the chats (messages, tool calls and results), photos you attached (`files/chat/<id>/`, deleted with the chat), scheduled tasks, action cards, and settings (your instructions, the chat model's name, the position in Nunsori's list of new files). Backups are off (`allowBackup=false`). Uninstalling deletes everything.
+In the app's private storage: the chats (messages, tool calls and results), photos you attached (`files/chat/<id>/`, deleted with the chat), scheduled tasks, action cards, and settings (your instructions, the chat model's name, the file match method, the position in Nunsori's list of new files). Backups are off (`allowBackup=false`). Uninstalling deletes everything.
 
 ## The companion apps
 
-- **OndolSaem** runs the chat model. This app sends it the conversation (system prompt, history, your message, attached photos) and tool results over Binder; OndolSaem processes them in memory and does not store them.
+- **OndolSaem** runs the chat model. This app sends it the conversation (system prompt, history, your message, attached photos) and tool results over Binder; OndolSaem processes them in memory and does not store them. With the decision model chosen for file tasks, the name and the first 1,200 characters of each new file's text are sent to OndolSaem the same way.
 - **Nunsori** holds your files. When the chat uses its tools, this app sends Nunsori the search words or file ids the model chose and receives search results, file text, thumbnails and the names you gave to people. Files are never copied here; opening one goes through Nunsori to the viewer you pick. Moves and deletions happen in Nunsori, and only after you approve a card.
 - **Jogakbo** holds your notes. When the chat uses its tools, this app sends Jogakbo the search words or note ids the model chose and receives note titles, snippets and text. Notes are not stored here except as tool results in the chat.
 - Nunsori sends this app a "the index changed" hint without data; this app then asks Nunsori which files are new.

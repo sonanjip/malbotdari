@@ -17,6 +17,7 @@ import io.github.taehunkim.malbotdari.data.db.TaskResult
 import io.github.taehunkim.malbotdari.data.db.TaskStatus
 import io.github.taehunkim.malbotdari.data.db.TaskTrigger
 import io.github.taehunkim.malbotdari.files.FileIndex
+import io.github.taehunkim.ondolsaem.sdk.Decisions
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
@@ -49,6 +50,11 @@ class TaskManager(
     private val setCursor: suspend (Long) -> Unit = {},
     /** Action cards a run left waiting for the user are counted in its notification. */
     private val actionDao: io.github.taehunkim.malbotdari.data.db.PendingActionDao? = null,
+    /** Settings: how conditions are matched ([FileMatchMode]) and what happens to unsure decisions. */
+    private val matchMode: suspend () -> FileMatchMode = { FileMatchMode.EMBEDDING },
+    private val unsureAction: suspend () -> UnsureAction = { UnsureAction.ASK_LLM },
+    /** OndolSaem's decision model: P(yes) per hypothesis, or null when it cannot be used. */
+    private val decide: suspend (premise: String, hypotheses: List<String>) -> FloatArray? = { _, _ -> null },
 ) {
     // ---- proposing ----
 
@@ -275,10 +281,12 @@ class TaskManager(
                     val kinds = parseKinds(t.fileKinds)
                     val mine = fresh.filter { id -> kindOf[id]?.let { kinds.isEmpty() || it in kinds } == true }.toSet()
                     if (mine.isEmpty()) return@runCatching
-                    val strong = if (t.fileQuery.isBlank()) mine else files.matchItems(t.fileQuery, mine, kinds).toSet()
+                    // decision mode: every new file is a candidate; run() asks the decision model (or, without text, the meaning match)
+                    val decision = t.fileQuery.isNotBlank() && matchMode() == FileMatchMode.DECISION
+                    val strong = if (t.fileQuery.isBlank() || decision) mine else files.matchItems(t.fileQuery, mine, kinds).toSet()
                     // Abstract conditions ("anything with a schedule") do not embed well: with few new files, let the model
                     // judge all that have text; files without text still need their own meaning/word match.
-                    val matched = if (t.fileQuery.isNotBlank() && mine.size <= JUDGE_FIRST_MAX && judgeFirst()) {
+                    val matched = if (!decision && t.fileQuery.isNotBlank() && mine.size <= JUDGE_FIRST_MAX && judgeFirst()) {
                         strong + mine.filter { files.readText(it, 1).isNotBlank() }
                     } else strong
                     if (matched.isEmpty()) return@runCatching
@@ -325,7 +333,7 @@ class TaskManager(
         }
 
         // File tasks with a condition: let the chat model check the candidates; nothing is posted when none really matches.
-        val confirmed = if (t.trigger == TaskTrigger.FILE && t.fileQuery.isNotBlank()) verify(alternatives(t.fileQuery).joinToString(" / "), ids) else ids
+        val confirmed = if (t.trigger == TaskTrigger.FILE && t.fileQuery.isNotBlank()) confirmFiles(t, ids) else ids
         if (t.trigger == TaskTrigger.FILE) {
             tasks.setPending(taskId, "")
             if (confirmed.isEmpty()) { Log.i(TAG, "task $taskId: ${ids.size} candidate(s), none matched the condition"); return }
@@ -341,6 +349,54 @@ class TaskManager(
         if (t.trigger == TaskTrigger.TIME && t.repeat == TaskRepeat.ONCE) tasks.setStatus(taskId, TaskStatus.DONE, t.activatedAt, null)
         val text = result.answer.ifBlank { result.error ?: "" }
         notifier(t, if (waiting > 0) context.getString(io.github.taehunkim.malbotdari.R.string.notif_actions_waiting, waiting) + " " + text else text, ok)
+    }
+
+    /** The candidates of a file task that match its condition, by the match method in Settings. */
+    private suspend fun confirmFiles(t: ScheduledTaskEntity, ids: List<Long>): List<Long> {
+        val condition = alternatives(t.fileQuery).joinToString(" / ")
+        val few = ids.size <= JUDGE_FIRST_MAX && judgeFirst()
+        if (matchMode() != FileMatchMode.DECISION) return verify(condition, ids)
+        val d = decideFiles(t, ids)
+        if (d == null) {
+            // no decision model: the candidates were not filtered yet, so do what the embedding mode does
+            Log.i(TAG, "task ${t.taskId}: decision model not available, using the meaning match")
+            val strong = runCatching { files.matchItems(t.fileQuery, ids.toSet(), parseKinds(t.fileKinds)).toSet() }.getOrDefault(ids.toSet())
+            val cand = if (few) ids.filter { it in strong || runCatching { files.readText(it, 1) }.getOrDefault("").isNotBlank() } else ids.filter { it in strong }
+            return if (cand.isEmpty()) cand else verify(condition, cand)
+        }
+        val unsure = unsureAction()
+        // with few files and "let the assistant judge" on, the chat model checks every answer that was not a clear yes
+        val ask = if (few) d.unsure + d.no else if (unsure == UnsureAction.ASK_LLM) d.unsure else emptyList()
+        val kept = if (!few && unsure == UnsureAction.KEEP) d.unsure.toSet() else emptySet()
+        val byLlm = if (ask.isEmpty()) emptySet() else verify(condition, ask).toSet()
+        Log.i(TAG, "task ${t.taskId}: decisions yes ${d.yes.size}, unsure ${d.unsure.size}, no ${d.no.size}, no text ${d.noText} (meaning match ${d.byMeaning.size}), assistant ${byLlm.size}/${ask.size}")
+        return ids.filter { it in d.yes || it in d.byMeaning || it in kept || it in byLlm }
+    }
+
+    private class Decided(val yes: Set<Long>, val unsure: List<Long>, val no: List<Long>, val byMeaning: Set<Long>, val noText: Int)
+
+    /**
+     * Asks the decision model about every candidate with text (file name + the start of its text, against one statement
+     * per alternative of the query; the best one counts). Files without text go to the meaning match. Null when the
+     * decision model cannot be used.
+     */
+    private suspend fun decideFiles(t: ScheduledTaskEntity, ids: List<Long>): Decided? {
+        val hypotheses = alternatives(t.fileQuery).map { Decisions.hypothesis(it) }
+        val names = runCatching { files.items(ids).associate { it.itemId to it.name } }.getOrDefault(emptyMap())
+        val yes = HashSet<Long>(); val unsure = ArrayList<Long>(); val no = ArrayList<Long>(); val noText = ArrayList<Long>()
+        for (id in ids) {
+            val text = runCatching { files.readText(id, DECISION_EXCERPT) }.getOrDefault("").replace(Regex("\\s+"), " ").trim()
+            if (text.isEmpty()) { noText += id; continue }
+            val p = decide(names[id]?.let { "$it\n$text" } ?: text, hypotheses) ?: return null
+            when (Decisions.verdict(p.maxOrNull() ?: 0f)) {
+                Decisions.Verdict.YES -> yes += id
+                Decisions.Verdict.UNSURE -> unsure += id
+                Decisions.Verdict.NO -> no += id
+            }
+        }
+        val byMeaning = if (noText.isEmpty()) emptySet() else
+            runCatching { files.matchItems(t.fileQuery, noText.toSet(), parseKinds(t.fileKinds)).toSet() }.getOrDefault(emptySet())
+        return Decided(yes, unsure, no, byMeaning, noText.size)
     }
 
     /**
@@ -413,6 +469,8 @@ class TaskManager(
         private const val MAX_PAGES = 10
         private const val MAX_FILES_LISTED = 10
         private const val FILE_EXCERPT = 300
+        /** Text the decision model reads per file (its window is a few hundred tokens). */
+        private const val DECISION_EXCERPT = 1200
         private const val RETRY_MS = 30 * 60_000L
         private const val LOW_BATTERY_PERCENT = 15
         private const val SKIPPED_BATTERY = "Skipped this run because the battery is low."

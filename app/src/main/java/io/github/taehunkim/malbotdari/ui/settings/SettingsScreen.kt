@@ -35,6 +35,11 @@ import io.github.taehunkim.malbotdari.BuildConfig
 import io.github.taehunkim.malbotdari.R
 import io.github.taehunkim.malbotdari.data.db.AppDatabase
 import io.github.taehunkim.malbotdari.data.prefs.SettingsStore
+import io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode
+import io.github.taehunkim.malbotdari.chat.schedule.UnsureAction
+import io.github.taehunkim.malbotdari.ml.HostState
+import io.github.taehunkim.ondolsaem.sdk.OndolSaem
+import androidx.compose.ui.platform.testTag
 import io.github.taehunkim.malbotdari.rememberContainer
 import kotlinx.coroutines.launch
 
@@ -73,12 +78,44 @@ fun SettingsScreen() {
             }
             Switch(checked = judgeFirst, onCheckedChange = { on -> scope.launch { c.settings.setTaskJudgeFirst(on) } })
         }
+        FileMatchSettings()
         HorizontalDivider()
 
         Section(R.string.settings_language, null)
         LanguagePicker()
         HorizontalDivider()
         About()
+    }
+}
+
+/** How file tasks match their condition: meaning match or OndolSaem's decision model, and what to do when it is unsure. */
+@Composable
+private fun FileMatchSettings() {
+    val c = rememberContainer()
+    val scope = rememberCoroutineScope()
+    val mode by c.settings.fileMatchMode.collectAsStateWithLifecycle(FileMatchMode.EMBEDDING)
+    val unsure by c.settings.decisionUnsure.collectAsStateWithLifecycle(UnsureAction.ASK_LLM)
+    val host by c.models.state.collectAsStateWithLifecycle()
+    Text(stringResource(R.string.settings_file_match_title), style = MaterialTheme.typography.titleSmall)
+    Text(stringResource(R.string.settings_file_match_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((m, label) in listOf(FileMatchMode.EMBEDDING to R.string.file_match_embedding, FileMatchMode.DECISION to R.string.file_match_decision)) {
+            FilterChip(selected = mode == m, onClick = { scope.launch { c.settings.setFileMatchMode(m) } }, label = { Text(stringResource(label)) },
+                modifier = Modifier.testTag("file_match_${m.name}"))
+        }
+    }
+    if (mode == FileMatchMode.DECISION) {
+        if (host.status == HostState.Status.CONNECTED && !host.ready(OndolSaem.Categories.DECISION)) {
+            Text(stringResource(R.string.file_match_no_model), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        Text(stringResource(R.string.settings_unsure_title), style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.settings_unsure_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((a, label) in listOf(UnsureAction.ASK_LLM to R.string.unsure_ask, UnsureAction.DROP to R.string.unsure_drop, UnsureAction.KEEP to R.string.unsure_keep)) {
+                FilterChip(selected = unsure == a, onClick = { scope.launch { c.settings.setDecisionUnsure(a) } }, label = { Text(stringResource(label)) },
+                    modifier = Modifier.testTag("unsure_${a.name}"))
+            }
+        }
     }
 }
 

@@ -24,5 +24,5 @@ Ask for something later or repeatedly ("every day at 9, summarize yesterday's ph
 
 - **Connected apps:** OndolSaem (chat model), Nunsori (files) and Jogakbo (notes), with **Check again** and buttons to open or get them.
 - **Your instructions** for every conversation (up to 2,000 characters).
-- **Background tasks:** notifications, exact alarms, battery exemption; *Let the assistant judge new files*.
+- **Background tasks:** notifications, exact alarms, battery exemption; *Let the assistant judge new files*; *How new files are matched* (similarity, or OndolSaem's decision model for files with text) and *When the decision model is unsure* (ask the assistant, skip, or count as a match).
 - **Language**, and **About** (version, GitHub, licenses).
