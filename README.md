@@ -47,6 +47,12 @@ The SDKs come from JitPack; to build against sibling checkouts see [docs/develop
 
 [User guide](docs/user-guide.md) · [Chat](docs/chat.md) · [Architecture](docs/architecture.md) · [Privacy](docs/privacy.md) · [Development](docs/development.md) · [Roadmap](docs/roadmap.md)
 
+## About the name
+
+**말벗다리 (Malbotdari)** joins **말벗** (*malbeot*, someone to talk to, a companion in conversation) and **다리** (*dari*, a bridge). The app is both: an assistant you talk with, and a bridge that reaches into your other apps (files through Nunsori, notes through Jogakbo, models through OndolSaem) to answer from them. *Malbeot* and *dari* were two separate candidates; they were joined so the name is distinctive. The English spelling uses *bot* instead of the standard romanization *beot*: it is easier to read and hints that this is a chat app ("mal-bot-da-ree").
+
+The two parts have their own backronyms: **MALBOT**, My Assistant, Local, Bridging Other Tools, and **DARI**, Dialog Across Records & Indexes.
+
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -47,6 +47,12 @@ SDK는 JitPack에서 받습니다. 형제 폴더 체크아웃으로 빌드하는
 
 [사용 안내](docs/user-guide.md) · [채팅](docs/chat.md) · [구조](docs/architecture.md) · [프라이버시](docs/privacy.md) · [개발](docs/development.md) · [로드맵](docs/roadmap.md)
 
+## 이름의 뜻
+
+**말벗다리**는 이야기 상대인 **말벗**과 앱과 앱을 잇는 **다리**를 합친 이름입니다. 이 앱은 둘 다입니다. 대화를 나누는 비서이면서, 다른 앱(눈소리의 파일, 조각보의 노트, 온돌샘의 모델)으로 건너가 그 내용으로 답하는 다리입니다. 원래 말벗과 다리는 따로 나온 후보였는데, 다른 이름과 겹치지 않도록 둘을 합쳤습니다. 영문 표기는 표준 로마자 표기(Malbeotdari) 대신 **Malbotdari**로 했습니다. 영어로 읽기 쉽고, *bot*이 들어가 채팅 앱이라는 점이 드러납니다.
+
+두 부분에 각각 역두문자가 있습니다: **MALBOT**은 My Assistant, Local, Bridging Other Tools, **DARI**는 Dialog Across Records & Indexes입니다.
+
 ## 라이선스
 
 Apache License 2.0, [LICENSE](LICENSE)와 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 참고.
