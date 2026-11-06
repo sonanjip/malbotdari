@@ -7,9 +7,9 @@ Android용 온디바이스 채팅 비서입니다. 계정도 인터넷도 필요
 | 역할 | 앱 | 하는 일 |
 |---|---|---|
 | 채팅 | **말벗다리** (이 레포) | 대화, 예약 작업, 승인 카드 |
-| AI 모델 | [온돌샘](https://github.com/TaeHunKim/ondolsaem) (필수) | 채팅 모델(Gemma 4, Qwen2.5)을 폰에서 받고 실행 |
-| 내 파일 | [눈소리](https://github.com/TaeHunKim/Nunsori) (선택) | 사진·문서·음성·영상을 인덱싱하고, 비서는 눈소리를 통해 검색하고 읽음 |
-| 내 노트 | [조각보](https://github.com/TaeHunKim/jogakbo) (선택) | 메모, 저장한 웹페이지·영상, 녹음과 그 요약. 비서는 조각보를 통해 검색하고 읽음 |
+| AI 모델 | [온돌샘](https://github.com/sonanjip/ondolsaem) (필수) | 채팅 모델(Gemma 4, Qwen2.5)을 폰에서 받고 실행 |
+| 내 파일 | [눈소리](https://github.com/sonanjip/nunsori) (선택) | 사진·문서·음성·영상을 인덱싱하고, 비서는 눈소리를 통해 검색하고 읽음 |
+| 내 노트 | [조각보](https://github.com/sonanjip/jogakbo) (선택) | 메모, 저장한 웹페이지·영상, 녹음과 그 요약. 비서는 조각보를 통해 검색하고 읽음 |
 
 ## 기능
 

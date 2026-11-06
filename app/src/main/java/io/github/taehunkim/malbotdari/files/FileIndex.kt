@@ -88,7 +88,7 @@ class NunsoriBridge(context: Context, val client: NunsoriClient = NunsoriClient(
 
     companion object {
         private const val TAG = "Malbot.Nunsori"
-        const val INSTALL_URL = "https://github.com/TaeHunKim/Nunsori/releases"
+        const val INSTALL_URL = "https://github.com/sonanjip/nunsori/releases"
 
         fun statusFor(reason: NunsoriUnavailableException.Reason): IndexState.Status = when (reason) {
             NunsoriUnavailableException.Reason.NOT_INSTALLED -> IndexState.Status.NOT_INSTALLED

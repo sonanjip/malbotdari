@@ -7,9 +7,9 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 | Part | App | What it does |
 |---|---|---|
 | Chat | **Malbotdari** (this repository) | Conversations, scheduled tasks, approval cards |
-| AI model | [OndolSaem](https://github.com/TaeHunKim/ondolsaem) (required) | Downloads and runs the chat model (Gemma 4, Qwen2.5) on the phone |
-| Your files | [Nunsori](https://github.com/TaeHunKim/Nunsori) (optional) | Indexes photos, documents, audio and video; the assistant searches and reads them through it |
-| Your notes | [Jogakbo](https://github.com/TaeHunKim/jogakbo) (optional) | Memos, saved web pages and videos, recordings with summaries; the assistant searches and reads them through it |
+| AI model | [OndolSaem](https://github.com/sonanjip/ondolsaem) (required) | Downloads and runs the chat model (Gemma 4, Qwen2.5) on the phone |
+| Your files | [Nunsori](https://github.com/sonanjip/nunsori) (optional) | Indexes photos, documents, audio and video; the assistant searches and reads them through it |
+| Your notes | [Jogakbo](https://github.com/sonanjip/jogakbo) (optional) | Memos, saved web pages and videos, recordings with summaries; the assistant searches and reads them through it |
 
 ## Features
 

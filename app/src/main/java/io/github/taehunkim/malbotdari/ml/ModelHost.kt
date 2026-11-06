@@ -151,8 +151,8 @@ class ModelHost(
         private const val TAG = "Malbot.ModelHost"
         const val BACKEND = "OndolSaem"
         const val DEFAULT_CONTEXT_TOKENS = 4096
-        const val INSTALL_URL = "https://github.com/TaeHunKim/ondolsaem/releases"
-        const val APP_RELEASES_URL = "https://github.com/TaeHunKim/malbotdari/releases"
+        const val INSTALL_URL = "https://github.com/sonanjip/ondolsaem/releases"
+        const val APP_RELEASES_URL = "https://github.com/sonanjip/malbotdari/releases"
 
         fun statusFor(reason: HostUnavailableException.Reason): HostState.Status = when (reason) {
             HostUnavailableException.Reason.NOT_INSTALLED -> HostState.Status.NOT_INSTALLED

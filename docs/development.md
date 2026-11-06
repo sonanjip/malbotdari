@@ -6,7 +6,7 @@ One Gradle module, `app` (package and applicationId `io.github.taehunkim.malbotd
 
 ## SDKs (OndolSaem, Nunsori, Jogakbo)
 
-Both client SDKs come from JitPack: `com.github.TaeHunKim:ondolsaem:<tag>` and `com.github.TaeHunKim:Nunsori:<tag>` (`ondolsaemSdk`, `nunsoriSdk` in `gradle/libs.versions.toml`). The Jogakbo SDK is `com.github.TaeHunKim:jogakbo:<tag>` (`jogakboSdk`). To build against sibling checkouts, put `ondolsaem.dir=../ondolsaem`, `nunsori.dir=../nunsori` and `jogakbo.dir=../jogakbo` in `local.properties`: `settings.gradle.kts` then includes them as composite builds and substitutes the modules with their `:sdk` projects. Until the first Nunsori and Jogakbo SDK tags (`sdk-v0.1.0`) are published, `nunsori.dir` and `jogakbo.dir` are required.
+Both client SDKs come from JitPack: `com.github.sonanjip:ondolsaem:<tag>` and `com.github.sonanjip:nunsori:<tag>` (`ondolsaemSdk`, `nunsoriSdk` in `gradle/libs.versions.toml`). The Jogakbo SDK is `com.github.sonanjip:jogakbo:<tag>` (`jogakboSdk`). To build against sibling checkouts, put `ondolsaem.dir=../ondolsaem`, `nunsori.dir=../nunsori` and `jogakbo.dir=../jogakbo` in `local.properties`: `settings.gradle.kts` then includes them as composite builds and substitutes the modules with their `:sdk` projects. Without these lines the published tags are used (`sdk-v0.5.0`, `sdk-v0.1.0`, `sdk-v0.1.0`).
 
 ## Testing
 

@@ -59,7 +59,7 @@ class JogakboBridge(context: Context, val client: JogakboClient = JogakboClient(
 
     companion object {
         private const val TAG = "Malbot.Jogakbo"
-        const val INSTALL_URL = "https://github.com/TaeHunKim/jogakbo/releases"
+        const val INSTALL_URL = "https://github.com/sonanjip/jogakbo/releases"
 
         fun statusFor(reason: JogakboUnavailableException.Reason): NotesState.Status = when (reason) {
             JogakboUnavailableException.Reason.NOT_INSTALLED -> NotesState.Status.NOT_INSTALLED

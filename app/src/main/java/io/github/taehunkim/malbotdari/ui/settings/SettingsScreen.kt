@@ -141,7 +141,7 @@ private fun About() {
     }
 }
 
-private const val GITHUB_URL = "https://github.com/TaeHunKim/malbotdari"
+private const val GITHUB_URL = "https://github.com/sonanjip/malbotdari"
 
 @Composable
 internal fun Section(title: Int, desc: Int?) {
