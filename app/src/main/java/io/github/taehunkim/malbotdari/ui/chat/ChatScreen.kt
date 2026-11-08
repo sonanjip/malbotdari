@@ -1,5 +1,6 @@
 package io.github.taehunkim.malbotdari.ui.chat
 
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,11 +14,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Edit
@@ -160,6 +165,10 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                             if (r.partial.isEmpty()) StatusRow(stringResource(R.string.chat_thinking)) else Bubble(r.partial, mine = false, actions = false)
                             if (r.trimmed) Text(stringResource(R.string.chat_trimmed), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        ChatPhase.GENERATING_IMAGE -> {
+                            if (r.partial.isNotEmpty()) Bubble(r.partial, mine = false, actions = false)
+                            StatusRow(stringResource(R.string.chat_image_generating))
+                        }
                         ChatPhase.FAILED -> WarningCard(
                             if (r.error == ChatController.NO_MODEL) stringResource(R.string.chat_model_missing) else stringResource(R.string.chat_error, r.error.orEmpty()),
                             stringResource(R.string.chat_dismiss), vm::dismissError,
@@ -222,6 +231,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                         ChatToolNames.NOTES to R.string.chat_tool_notes,
                         ChatToolNames.SCHEDULE to R.string.chat_tool_schedule, ChatToolNames.CALENDAR to R.string.chat_tool_actions,
                         ChatToolNames.MOVE to R.string.chat_tool_files,
+                        ChatToolNames.GENERATE_IMAGE to R.string.chat_tool_generate_image,
                     ).forEach { (tool, label) ->
                         DropdownMenuItem(
                             text = { Text(stringResource(label)) }, onClick = { vm.toggleTool(tool) },
@@ -235,7 +245,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 }
             }
             IconButton(onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-                Icon(Icons.Filled.AttachFile, stringResource(R.string.chat_attach_photo))
+                Icon(Icons.Filled.Image, stringResource(R.string.chat_attach_photo))
             }
             IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
                 Icon(Icons.Filled.AttachFile, stringResource(R.string.attachment_choose_files))
@@ -405,15 +415,47 @@ private fun ToolCard(m: ChatMessageEntity, onOpenItem: (Long) -> Unit) {
         ChatToolNames.READ -> stringResource(R.string.chat_tool_ran_read, runCatching { JSONObject(m.text).optString("name") }.getOrDefault("").ifEmpty { "#" + args.optLong("item_id") })
         ChatToolNames.NOTES -> stringResource(R.string.chat_tool_ran_notes, args.optString("query"), found.size)
         ChatToolNames.READ_NOTE -> stringResource(R.string.chat_tool_ran_read_note, runCatching { JSONObject(m.text).optString("title") }.getOrDefault("").ifEmpty { "#" + args.optLong("note_id") })
+        ChatToolNames.GENERATE_IMAGE -> stringResource(R.string.chat_tool_ran_generate_image, args.optString("prompt"))
         else -> m.toolName.orEmpty()
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val isNotes = m.toolName == ChatToolNames.NOTES || m.toolName == ChatToolNames.READ_NOTE
     val openNote: (Long) -> Unit = { id -> runCatching { ctx.startActivity(io.github.taehunkim.jogakbo.sdk.Jogakbo.openNoteIntent(id)) } }
     val noteRead = remember(m.text) { if (m.toolName == ChatToolNames.READ_NOTE) runCatching { JSONObject(m.text) }.getOrNull() else null }
+    val genResult = remember(m.text) { if (m.toolName == ChatToolNames.GENERATE_IMAGE) runCatching { JSONObject(m.text) }.getOrNull() else null }
+    val genImagePath = genResult?.optString("image_path")?.takeIf { it.isNotEmpty() }
+    val isGenerating = m.toolName == ChatToolNames.GENERATE_IMAGE && genImagePath == null && genResult?.optString("status") == "generating"
     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.clickable { open = !open }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(summary, style = MaterialTheme.typography.labelMedium)
+            if (isGenerating) {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(stringResource(R.string.chat_image_generating), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            genImagePath?.let { path ->
+                val f = File(path)
+                if (f.exists()) {
+                    Spacer(Modifier.height(4.dp))
+                    io.github.taehunkim.malbotdari.ui.common.LocalPhoto(f, modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).clip(RoundedCornerShape(8.dp)))
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+                        AssistChip(
+                            onClick = {
+                                val ok = saveImageToGallery(ctx, f)
+                                android.widget.Toast.makeText(
+                                    ctx,
+                                    if (ok) R.string.chat_image_saved else R.string.chat_image_save_failed,
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                            },
+                            label = { Text(stringResource(R.string.chat_image_save)) },
+                            leadingIcon = { Icon(Icons.Filled.Download, null, Modifier.size(16.dp)) },
+                        )
+                    }
+                }
+            }
             if (open) {
                 noteRead?.let { o -> Text(o.optString("title"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { openNote(o.optLong("note_id")) }.padding(vertical = 2.dp)) }
                 if (isNotes) found.forEach { o ->
@@ -432,5 +474,34 @@ private fun ToolCard(m: ChatMessageEntity, onOpenItem: (Long) -> Unit) {
                 if (found.isEmpty() && noteRead == null) Text(m.text.take(400), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+private fun saveImageToGallery(context: Context, file: File): Boolean {
+    return try {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, file.name)
+            put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Malbotdari")
+                put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+        resolver.openOutputStream(uri)?.use { out ->
+            file.inputStream().use { input ->
+                input.copyTo(out)
+            }
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            values.clear()
+            values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        }
+        true
+    } catch (e: Exception) {
+        android.util.Log.e("ChatScreen", "Failed to save image to gallery", e)
+        false
     }
 }

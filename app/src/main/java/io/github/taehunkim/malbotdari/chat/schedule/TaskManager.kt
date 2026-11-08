@@ -55,6 +55,8 @@ class TaskManager(
     private val unsureAction: suspend () -> UnsureAction = { UnsureAction.ASK_LLM },
     /** OndolSaem's decision model: P(yes) per hypothesis, or null when it cannot be used. */
     private val decide: suspend (premise: String, hypotheses: List<String>) -> FloatArray? = { _, _ -> null },
+    private val decideImage: suspend (image: ByteArray, premise: String, hypotheses: List<String>) -> FloatArray? = { _, _, _ -> null },
+    private val canDecideImage: () -> Boolean = { false },
 ) {
     // ---- proposing ----
 
@@ -382,12 +384,27 @@ class TaskManager(
      */
     private suspend fun decideFiles(t: ScheduledTaskEntity, ids: List<Long>): Decided? {
         val hypotheses = alternatives(t.fileQuery).map { Decisions.hypothesis(it) }
-        val names = runCatching { files.items(ids).associate { it.itemId to it.name } }.getOrDefault(emptyMap())
+        val itemsMap = runCatching { files.items(ids).associateBy { it.itemId } }.getOrDefault(emptyMap())
+        val names = itemsMap.mapValues { it.value.name }
         val yes = HashSet<Long>(); val unsure = ArrayList<Long>(); val no = ArrayList<Long>(); val noText = ArrayList<Long>()
         for (id in ids) {
+            val item = itemsMap[id]
             val text = runCatching { files.readText(id, DECISION_EXCERPT) }.getOrDefault("").replace(Regex("\\s+"), " ").trim()
-            if (text.isEmpty()) { noText += id; continue }
-            val p = decide(names[id]?.let { "$it\n$text" } ?: text, hypotheses) ?: return null
+            val isImageOrVideo = item != null && (item.kind == "image" || item.kind == "video")
+            val p = if (isImageOrVideo && canDecideImage()) {
+                val thumb = runCatching { files.thumbnail(id, 384) }.getOrNull()
+                if (thumb != null) {
+                    decideImage(thumb, text.ifEmpty { names[id].orEmpty() }, hypotheses) ?: return null
+                } else if (text.isNotEmpty()) {
+                    decide(names[id]?.let { "$it\n$text" } ?: text, hypotheses) ?: return null
+                } else {
+                    noText += id; continue
+                }
+            } else if (text.isNotEmpty()) {
+                decide(names[id]?.let { "$it\n$text" } ?: text, hypotheses) ?: return null
+            } else {
+                noText += id; continue
+            }
             when (Decisions.verdict(p.maxOrNull() ?: 0f)) {
                 Decisions.Verdict.YES -> yes += id
                 Decisions.Verdict.UNSURE -> unsure += id

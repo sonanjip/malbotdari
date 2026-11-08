@@ -127,6 +127,48 @@ class ModelHost(
     /** Test hook for [entail]. */
     var decideOverride: (suspend (String, List<String>) -> FloatArray?)? = null
 
+    val decisionVision: Boolean
+        get() = decideImageOverride != null || _state.value.model(Categories.DECISION)?.vision == true
+
+    /** Test hook for [entailImage]. */
+    var decideImageOverride: (suspend (ByteArray, String, List<String>) -> FloatArray?)? = null
+
+    /**
+     * OndolSaem's decision model for images: P(yes) per hypothesis for [imageBytes] and optional [premise].
+     */
+    suspend fun entailImage(imageBytes: ByteArray, premise: String = "", hypotheses: List<String>): FloatArray? {
+        decideImageOverride?.let { return it(imageBytes, premise, hypotheses) }
+        return try {
+            if (!client.supports(OndolSaem.Api.V4)) null
+            else client.entailImage(imageBytes, premise, hypotheses, OndolSaem.PRIORITY_BACKGROUND)
+        } catch (e: HostCallException) {
+            Log.i(TAG, "image decision failed: ${e.code} ${e.message}"); null
+        } catch (e: HostUnavailableException) {
+            Log.i(TAG, "image decision unavailable: ${e.reason}"); null
+        }
+    }
+
+    val imageGenReady: Boolean
+        get() = imageGenOverride != null || _state.value.ready(Categories.IMAGE_GEN)
+
+    /** Test hook for [generateImage]. */
+    var imageGenOverride: (suspend (String, Long) -> ByteArray?)? = null
+
+    /**
+     * OndolSaem's image generation model: returns PNG bytes for [prompt] with [seed], or null when unavailable.
+     */
+    suspend fun generateImage(prompt: String, seed: Long = 0L): ByteArray? {
+        imageGenOverride?.let { return it(prompt, seed) }
+        return try {
+            if (!client.supports(OndolSaem.Api.V4)) null
+            else client.generateImage(prompt, seed, OndolSaem.PRIORITY_INTERACTIVE)
+        } catch (e: HostCallException) {
+            Log.i(TAG, "image generation failed: ${e.code} ${e.message}"); null
+        } catch (e: HostUnavailableException) {
+            Log.i(TAG, "image generation unavailable: ${e.reason}"); null
+        }
+    }
+
     private suspend fun hostLease(category: String): HostLease? = try {
         client.acquire(category)
     } catch (e: HostCallException) {

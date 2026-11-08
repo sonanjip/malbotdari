@@ -30,7 +30,9 @@ object ChatToolNames {
     /** Jogakbo's tools: search_notes is the switch for both. */
     const val NOTES = "search_notes"
     const val READ_NOTE = "read_note"
-    val ALL = listOf(SEARCH, READ, NOTES, SCHEDULE, CALENDAR, MOVE)
+    /** Image generation tool (Iris in OndolSaem). */
+    const val GENERATE_IMAGE = "generate_image"
+    val ALL = listOf(SEARCH, READ, NOTES, SCHEDULE, CALENDAR, MOVE, GENERATE_IMAGE)
     /** Tools whose result carries an `action_id` (a card in the chat). */
     val ACTION_TOOLS = setOf(CALENDAR, CONTACT, MOVE, DELETE)
 
@@ -108,5 +110,40 @@ class CompactChatTool(private val delegate: ChatTool) : ChatTool by delegate {
             }
             return o
         }
+    }
+}
+
+/** Tool for generating images using OndolSaem's image generation model (Iris 3B Turbo). */
+class GenerateImageTool(
+    private val onRequest: (prompt: String, seed: Long) -> Unit,
+) : ChatTool {
+    override val name = ChatToolNames.GENERATE_IMAGE
+    override val description =
+        "Generates an image from a detailed English visual description. " +
+        "Always create a detailed, rich English prompt describing subjects, background, colors, lighting, composition, and style."
+    override val parameters: String = JSONObject()
+        .put("type", "object")
+        .put("properties", JSONObject()
+            .put("prompt", JSONObject()
+                .put("type", "string")
+                .put("description", "A rich, detailed visual description in English of the image to generate.")
+            )
+            .put("seed", JSONObject()
+                .put("type", "integer")
+                .put("description", "Optional random seed for reproducible generation (default 0).")
+            )
+        )
+        .put("required", JSONArray().put("prompt"))
+        .toString()
+
+    override fun execute(args: JSONObject): String {
+        val prompt = args.optString("prompt").trim()
+        if (prompt.isEmpty()) return "Error: prompt cannot be empty."
+        val seed = args.optLong("seed", 0L)
+        onRequest(prompt, seed)
+        return JSONObject()
+            .put("status", "generating")
+            .put("prompt", prompt)
+            .toString()
     }
 }

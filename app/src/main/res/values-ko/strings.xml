@@ -80,6 +80,12 @@
     <string name="chat_tool_ran_read">%1$s 읽음</string>
     <string name="chat_tool_ran_search">“%1$s” 파일 검색 · 결과 %2$d건</string>
     <string name="chat_tool_read">파일 읽기</string>
+    <string name="chat_tool_generate_image">이미지 생성</string>
+    <string name="chat_tool_ran_generate_image">이미지 생성: “%1$s”</string>
+    <string name="chat_image_generating">이미지 생성 중…</string>
+    <string name="chat_image_save">이미지 저장</string>
+    <string name="chat_image_saved">갤러리에 저장했습니다</string>
+    <string name="chat_image_save_failed">이미지 저장에 실패했습니다</string>
     <string name="chat_tool_schedule">예약</string>
     <string name="chat_tool_search">파일 검색</string>
     <string name="chat_tools">도구</string>

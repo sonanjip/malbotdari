@@ -44,6 +44,9 @@ interface ChatDao {
     @Insert
     suspend fun insertMessage(message: ChatMessageEntity): Long
 
+    @Query("UPDATE chat_messages SET text = :text WHERE msgId = :msgId")
+    suspend fun updateMessageText(msgId: Long, text: String)
+
     @Query("UPDATE attachments SET sent = 1 WHERE sessionId = :sessionId AND attachmentId IN (:ids)")
     suspend fun markAttachmentsSent(sessionId: Long, ids: List<Long>)
 

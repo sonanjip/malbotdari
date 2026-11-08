@@ -13,7 +13,7 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 | Part | App | What it does |
 |---|---|---|
 | Chat | **Malbotdari** (this repository) | Conversations, scheduled tasks, approval cards |
-| AI model | [OndolSaem](https://github.com/sonanjip/ondolsaem) (required) | Downloads and runs the chat model (Gemma 4, Qwen2.5) on the phone |
+| AI model | [OndolSaem](https://github.com/sonanjip/ondolsaem) (required) | Downloads and runs models on the phone: chat (Gemma 4, Qwen3.5, LFM3), decisions, and image generation |
 | Your files | [Nunsori](https://github.com/sonanjip/nunsori) (optional) | Indexes photos, documents, audio and video; the assistant searches and reads them through it |
 | Your notes | [Jogakbo](https://github.com/sonanjip/jogakbo) (optional) | Memos, saved web pages and videos, recordings with summaries; the assistant searches and reads them through it |
 
@@ -21,11 +21,11 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 
 | Feature | What it does |
 |---|---|
-| Chat | Per-chat history with pinning, Markdown answers with copy and share, your own instructions, local document, audio and image attachments with pre-copy share review |
+| Chat & tools | Per-chat history with pinning, Markdown answers with copy and share, your own instructions, local document, audio and image attachments with pre-copy share review, and on-device image generation (`generate_image`) with inline preview |
 | Your files (with Nunsori) | Search and read indexed files, file previews under answers, people by the names you gave in Nunsori, "Ask in chat" from Nunsori's search |
 | Your notes (with Jogakbo) | Search and read notes and their summaries (`search_notes`, `read_note`); a tap on a found note opens it in Jogakbo |
 | Cards you approve | Calendar events and contacts (the system app opens prefilled), moving or trashing files (done by Nunsori) |
-| Scheduled tasks | Later, repeatedly or when Nunsori indexes a matching file; results posted to the chat and notified. New files are matched by similarity or, if chosen in Settings, by OndolSaem's decision model (yes/no per file with text) |
+| Scheduled tasks | Later, repeatedly or when Nunsori indexes a matching file; results posted to the chat and notified. New files are matched by similarity or, if chosen in Settings, by OndolSaem's decision model (yes/no per file with text, or direct image decision for photos/videos without OCR when using vision models) |
 | Privacy | No `INTERNET` permission; the companion apps are reached over Android's on-device IPC |
 
 English and Korean UI, dark mode.

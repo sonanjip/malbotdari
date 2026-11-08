@@ -87,14 +87,17 @@ class ChatTest {
     private var decideFn: ((String, List<String>) -> FloatArray?)? = { premise, hs ->
         FloatArray(hs.size) { if ("receipt" in premise) 0.9f else if ("maybe" in premise) 0.5f else 0.1f }
     }
+    private var decideImageFn: ((ByteArray, String, List<String>) -> FloatArray?)? = null
+    private var canDecideImageValue = false
     private val decided = ArrayList<String>()
+    private val decidedImage = ArrayList<Pair<ByteArray, String>>()
     private val notified = ArrayList<Triple<Long, String, Boolean>>()
     private val enqueued = ArrayList<Long>()
 
     @Before fun setUp() = runBlocking {
         db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).build()
         settings = SettingsStore(ctx)
-        settings.setChatModelId("chat-qwen25-1.5b")
+        settings.setChatModelId(SettingsStore.DEFAULT_CHAT)
         residency = ModelHost(ctx, settings, scope)
         residency.chatOverride = { if (modelPresent) model else null }
         residency.contextTokensOverride = 4096
@@ -106,6 +109,8 @@ class ChatTest {
             judgeFirst = { judgeFirstOn }, actionDao = db.actionDao(), cursor = { cursorValue }, setCursor = { cursorValue = it },
             matchMode = { matchModeValue }, unsureAction = { unsureValue },
             decide = { p, h -> decided += p; decideFn?.invoke(p, h) },
+            decideImage = { img, p, h -> decidedImage += Pair(img, p); decideImageFn?.invoke(img, p, h) },
+            canDecideImage = { canDecideImageValue },
         )
         controller = ChatController(ctx, db.chatDao(), files, residency, settings, scope, clock = { now }, taskManager = tasks, actions = actionManager, notes = notes, localAttachments = db.attachmentDao())
     }
@@ -813,5 +818,52 @@ class ChatTest {
         }
         tasks.run(id)
         assertEquals(1, model.calls.size)
+    }
+
+    @Test fun imageDecisionMatchesImageDirectlyWithoutOcrText() = runBlocking {
+        judgeFirstOn = true
+        matchModeValue = io.github.taehunkim.malbotdari.chat.schedule.FileMatchMode.DECISION
+        canDecideImageValue = true
+        decideImageFn = { img, _, hs ->
+            if (img.size == 4) FloatArray(hs.size) { 0.95f } else FloatArray(hs.size) { 0.1f }
+        }
+        val chat = controller.newSession()
+        val args = JSONObject().put("trigger", "file").put("instruction", "x").put("query", "cat photo")
+        val id = JSONObject(tasks.propose(chat, args)).getLong("task_id").also { tasks.confirm(it) }
+        now += 1_000
+        val imgId = addItem("cat.jpg", ItemKind.IMAGE, seg(SegmentType.IMAGE, 0, null), indexedAt = now)
+        files.thumbnails[imgId] = byteArrayOf(1, 2, 3, 4)
+        tasks.onIndexChanged()
+        assertEquals(imgId.toString(), db.taskDao().get(id)!!.pendingItemIds)
+        model = FakeChatModel { listOf(ChatEvent.Token("Logged.")) }
+        tasks.run(id)
+        assertEquals(1, decidedImage.size)
+        assertEquals(4, decidedImage.first().first.size)
+    }
+
+    @Test fun generateImageToolRunsWhenRequestedAndSavesPng() = runBlocking {
+        val fakePng = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        residency.imageGenOverride = { prompt, seed ->
+            assertEquals("A majestic golden retriever sitting peacefully in a meadow of wildflowers", prompt)
+            fakePng
+        }
+        val chat = controller.newSession()
+        model = FakeChatModel { tools ->
+            val tool = tools.firstOrNull { it.name == ChatToolNames.GENERATE_IMAGE }
+            assertNotNull("generate_image tool should be available when imageGenReady is true", tool)
+            val result = tool!!.execute(JSONObject().put("prompt", "A majestic golden retriever sitting peacefully in a meadow of wildflowers"))
+            listOf(ChatEvent.ToolRan(tool.name, "{}", result), ChatEvent.Token("I generated the image for you."))
+        }
+        controller.send(chat, "Generate a picture of a golden retriever in wildflowers"); awaitIdle()
+        val msgs = db.chatDao().messages(chat)
+        val toolMsg = msgs.firstOrNull { it.role == ChatRole.TOOL }
+        assertNotNull("Tool message should be recorded", toolMsg)
+        val toolJson = JSONObject(toolMsg!!.text)
+        assertEquals("success", toolJson.optString("status"))
+        val imgPath = toolJson.getString("image_path")
+        val savedFile = File(imgPath)
+        assertTrue("Generated image file should exist on disk", savedFile.exists())
+        assertEquals(8, savedFile.length())
+        assertEquals("I generated the image for you.", msgs.last().text)
     }
 }

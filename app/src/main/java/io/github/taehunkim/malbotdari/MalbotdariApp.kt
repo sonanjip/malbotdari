@@ -42,6 +42,8 @@ class AppContainer(val context: Context) {
             cursor = { settings.indexCursor.first() }, setCursor = settings::setIndexCursor,
             matchMode = { settings.fileMatchMode.first() }, unsureAction = { settings.decisionUnsure.first() },
             decide = { premise, hypotheses -> models.entail(premise, hypotheses) },
+            decideImage = { image, premise, hypotheses -> models.entailImage(image, premise, hypotheses) },
+            canDecideImage = { models.decisionVision },
         )
     }
     val attachments by lazy { io.github.taehunkim.malbotdari.attachments.AttachmentProcessor(context, db.attachmentDao(), models.client, appScope) }
