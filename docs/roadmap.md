@@ -21,3 +21,5 @@
 - Re-indexed files (after a model change in OndolSaem) count as new for file tasks.
 - The small default chat model sometimes calls a tool with missing arguments (for example `schedule_task` without `trigger`) and then claims success; check that a task card appears (see the idea above).
 - Scheduled tasks run one at a time and need the chat model, so a run can be late when another answer is being generated or the phone is in Doze or an OEM sleep list (Samsung *Sleeping apps*); a new file counts only if it clearly stands out from the typical similarity of Nunsori's index (or contains all the query words) and the chat model confirms it; photos without text are not checked by the model.
+
+Image previews requested by `view_image` and referenced attachments from Jogakbo are implemented. Video viewing remains a representative-frame preview, and document previews do not select arbitrary pages. Attachment chats compact tool documentation to fit small context windows.

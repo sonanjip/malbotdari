@@ -56,3 +56,5 @@ SDK는 JitPack에서 받습니다. 형제 폴더 체크아웃으로 빌드하는
 ## 라이선스
 
 Apache License 2.0, [LICENSE](LICENSE)와 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 참고.
+
+눈소리 파일과 조각보 메모를 채팅에 첨부할 수 있습니다. 모델은 첨부 안에서 필요한 구간을 검색하고, 이미지는 `view_image`로 요청해 봅니다(이미지 지원 모델 필요, 질문당 두 장).

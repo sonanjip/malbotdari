@@ -41,11 +41,12 @@ class MainActivity : AppCompatActivity() {
         intent.getLongExtra(Notifications.EXTRA_SESSION, -1).takeIf { it > 0 }?.let { openChat.value = it; return }
         if (intent.action == ACTION_NEW_CHAT) {
             // Another app (Nunsori's Search) hands over files to ask about: a new chat with them attached.
-            val ids = intent.getLongArrayExtra(EXTRA_ITEM_IDS)?.toList().orEmpty().take(MAX_ITEMS)
+            val ids = intent.getLongArrayExtra(EXTRA_ITEM_IDS)?.toList().orEmpty().filter { it > 0 }.distinct().take(MAX_ITEMS)
             val c = (application as MalbotdariApp).container
             lifecycleScope.launch {
                 val id = c.chat.newSession()
                 if (ids.isNotEmpty()) c.chat.queueAttachments(id, ids)
+                c.chat.queueNotes(id, intent.getLongArrayExtra("note_ids")?.toList().orEmpty().filter { it > 0 }.distinct().take(MAX_ITEMS - ids.size))
                 openChat.value = id
             }
         }

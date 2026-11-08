@@ -25,6 +25,7 @@ class FakeFileIndex : FileIndex {
     data class File(val id: Long, val name: String, val kind: ItemKind, val text: String, val seq: Long)
     val files = ArrayList<File>()
     val commits = ArrayList<Pair<String, String>>()
+    val thumbnails = HashMap<Long, ByteArray>()
     var available = true
     var people = listOf<String>()
     private var seq = 100L
@@ -67,7 +68,7 @@ class FakeFileIndex : FileIndex {
 
     override suspend fun commit(name: String, payload: String): CommitResult { check(); commits += name to payload; return CommitResult(true, "1 done") }
     override suspend fun items(ids: List<Long>) = files.filter { it.id in ids }.map { ItemInfo(it.id, it.name, it.kind.apiName, null, "2026-01-01", "Documents/", "DONE") }
-    override suspend fun thumbnail(id: Long, maxPx: Int): ByteArray? = null
+    override suspend fun thumbnail(id: Long, maxPx: Int): ByteArray? = thumbnails[id]
     override suspend fun readText(id: Long, maxChars: Int) = files.firstOrNull { it.id == id }?.text?.take(maxChars).orEmpty()
     override suspend fun changesSince(cursor: Long, limit: Int): Changes {
         check()

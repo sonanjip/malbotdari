@@ -43,3 +43,5 @@ Time tasks: `TaskAlarms` (exact alarm per task) → `TaskAlarmReceiver` → uniq
 - **The chat left Nunsori** (Nunsori 0.10.0) so other apps (a notes app) can join the same assistant, and Nunsori stays a search app. Nunsori exposes its index as tools; this app does not know how search works.
 - **Nunsori does the file work.** Moving or deleting needs All files access and keeps the index in step, so Nunsori prepares (confirmation) and commits after the user approved the card here.
 - **Hints, not data, over broadcasts.** Anyone can send a broadcast, so `INDEX_CHANGED` carries nothing; the cursor-based `changesSince` is authenticated by Nunsori.
+
+`ViewImageTool` queues JPEG previews within one chat turn. `ChatController` follows the text tool loop with a fresh-key image-bearing generation when images were requested. `PendingAttachment.Note` uses Jogakbo note IDs; metadata comes from `NotesSource.info` and the note chips open Jogakbo. This uses existing SDK methods, without an AIDL change.

@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 /** A file or photo attached to a message, as shown in the UI. */
-data class AttachmentChip(val itemId: Long? = null, val photoFile: String? = null, val label: String)
+data class AttachmentChip(val itemId: Long? = null, val photoFile: String? = null, val noteId: Long? = null, val label: String)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewModel() {
@@ -82,6 +82,8 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     /** Attachments waiting for the next send. */
     var pending by mutableStateOf<List<PendingAttachment>>(emptyList())
         private set
+    var noteLabels by mutableStateOf<Map<Long, String>>(emptyMap())
+        private set
     var pendingLabels by mutableStateOf<Map<Long, String>>(emptyMap())
         private set
 
@@ -95,9 +97,14 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
 
     init {
         // Files chosen in Nunsori's Search ("Ask in chat") arrive as pending attachments.
+        val noteIds = controller.takeQueuedNotes(sessionId)
+        pending = noteIds.map { PendingAttachment.Note(it) }
+        if (noteIds.isNotEmpty()) viewModelScope.launch {
+            noteLabels = runCatching { c.notes.info(noteIds).associate { it.noteId to it.title } }.getOrDefault(emptyMap())
+        }
         val queued = controller.takeQueuedAttachments(sessionId)
         if (queued.isNotEmpty()) viewModelScope.launch {
-            pending = queued.map { PendingAttachment.Item(it) }
+            pending = pending + queued.map { PendingAttachment.Item(it) }
             pendingLabels = runCatching { c.files.items(queued).associate { it.itemId to it.name } }.getOrDefault(emptyMap())
         }
     }
@@ -137,7 +144,7 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
                 val arr = JSONArray(json)
                 (0 until arr.length()).map { i ->
                     val o = arr.getJSONObject(i)
-                    if (o.has("itemId")) AttachmentChip(itemId = o.getLong("itemId"), label = "") else AttachmentChip(photoFile = o.getString("photo"), label = "")
+                    if (o.has("noteId")) AttachmentChip(noteId = o.getLong("noteId"), label = o.optString("title")) else if (o.has("itemId")) AttachmentChip(itemId = o.getLong("itemId"), label = "") else AttachmentChip(photoFile = o.getString("photo"), label = "")
                 }
             }.getOrDefault(emptyList())
         }

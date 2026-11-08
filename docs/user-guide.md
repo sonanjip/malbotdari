@@ -26,3 +26,5 @@ Ask for something later or repeatedly ("every day at 9, summarize yesterday's ph
 - **Your instructions** for every conversation (up to 2,000 characters).
 - **Background tasks:** notifications, exact alarms, battery exemption; *Let the assistant judge new files*; *How new files are matched* (similarity, or OndolSaem's decision model for files with text) and *When the decision model is unsure* (ask the assistant, skip, or count as a match).
 - **Language**, and **About** (version, GitHub, licenses).
+
+Use **Ask in chat** in Nunsori or Jogakbo to attach files or notes. The assistant searches within long attachments rather than reading just their beginning. With a vision model it can request up to two image previews per question; for a video this shows a representative frame. You can ask a follow-up about the same attachment.

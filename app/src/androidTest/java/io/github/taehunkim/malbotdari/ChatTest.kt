@@ -203,7 +203,7 @@ class ChatTest {
     @Test fun onlyEnabledToolsAreOffered() = runBlocking {
         val id = controller.newSession(setOf(ChatToolNames.READ))
         sendAndWait(id, "hi")
-        assertEquals(listOf(ChatToolNames.READ), model.calls.single().tools)
+        assertEquals(listOf(ChatToolNames.READ, "view_image"), model.calls.single().tools)
         db.chatDao().setTools(id, "", false)
         sendAndWait(id, "again")
         assertTrue(model.calls.last().tools.isEmpty())
@@ -253,15 +253,69 @@ class ChatTest {
 
     // ---- attachments
 
-    @Test fun attachedFilesAreGivenToTheModelAsExcerpts() = runBlocking {
+    @Test fun attachedFilesCarryReferencesRatherThanBulkText() = runBlocking {
         val doc = addItem("plan.docx", ItemKind.DOC, seg(SegmentType.TEXT_CHUNK, 0, "Launch depends on design approval.", page = 1))
         val id = controller.newSession()
         sendAndWait(id, "summarize", listOf(PendingAttachment.Item(doc)))
         val sent = model.calls.single().user.text
-        assertTrue(sent, sent.contains("[Attached file: plan.docx (item_id=$doc, document)]") && sent.contains("design approval") && sent.endsWith("summarize"))
+        assertTrue(sent, sent.contains("[Attached file: plan.docx (item_id=$doc, document)]") && !sent.contains("design approval") && sent.contains("search_in_file") && sent.endsWith("summarize"))
         val stored = db.chatDao().messages(id).first()
         assertEquals("the stored question is only what the user typed", "summarize", stored.text)
         assertEquals(doc, JSONArray(stored.attachments).getJSONObject(0).getLong("itemId"))
+    }
+
+    @Test fun requestedImageReachesTheVisionModel() = runBlocking {
+        val image = addItem("cat.jpg", ItemKind.IMAGE)
+        files.thumbnails[image] = byteArrayOf(1, 2, 3)
+        model = FakeChatModel(true) { tools ->
+            tools.firstOrNull { it.name == "view_image" }?.let {
+                listOf(ChatEvent.ToolRan(it.name, "{}", it.execute(JSONObject().put("item_id", image))), ChatEvent.Token("Loading"))
+            } ?: listOf(ChatEvent.Token("A cat"))
+        }
+        val id = controller.newSession()
+        sendAndWait(id, "what is in this photo?", listOf(PendingAttachment.Item(image)))
+        assertEquals(2, model.calls.size)
+        assertTrue(model.calls.last().user.images.single().contentEquals(byteArrayOf(1, 2, 3)))
+        assertEquals("A cat", db.chatDao().messages(id).last().text)
+        assertTrue(model.calls.last().user.text.contains("what is in this photo?"))
+    }
+
+    @Test fun viewImageRejectsTextModelsAndEnforcesTheTwoImageLimit() = runBlocking {
+        val id = addItem("cat.jpg", ItemKind.IMAGE)
+        files.thumbnails[id] = byteArrayOf(1)
+        val noVision = io.github.taehunkim.malbotdari.chat.ViewImageTool(files, false)
+        assertTrue(noVision.execute(JSONObject().put("item_id", id)).contains("cannot see"))
+        assertTrue(noVision.loaded.isEmpty())
+        val vision = io.github.taehunkim.malbotdari.chat.ViewImageTool(files, true)
+        repeat(3) { i -> files.thumbnails[(i + 1).toLong()] = byteArrayOf(1); vision.execute(JSONObject().put("item_id", i + 1)) }
+        assertEquals(2, vision.loaded.size)
+    }
+
+    @Test fun pickerPhotoIsKeptWhenAnIndexedImageIsRequested() = runBlocking {
+        val image = addItem("cat.jpg", ItemKind.IMAGE)
+        files.thumbnails[image] = byteArrayOf(1, 2, 3)
+        val photo = File(ctx.cacheDir, "mixed-photo.jpg")
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 8, android.graphics.Bitmap.Config.ARGB_8888)
+        photo.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }; bitmap.recycle()
+        model = FakeChatModel(true) { tools ->
+            tools.firstOrNull { it.name == "view_image" }?.let {
+                listOf(ChatEvent.ToolRan(it.name, "{}", it.execute(JSONObject().put("item_id", image))))
+            } ?: listOf(ChatEvent.Token("Both images"))
+        }
+        try {
+            val id = controller.newSession()
+            sendAndWait(id, "compare", listOf(PendingAttachment.Photo(android.net.Uri.fromFile(photo)), PendingAttachment.Item(image)))
+            assertEquals(2, model.calls.last().user.images.size)
+            assertTrue(model.calls.last().user.images.first().contentEquals(model.calls.first().user.images.single()))
+        } finally { photo.delete() }
+    }
+
+    @Test fun noteAttachmentCarriesOnlyItsIdentity() = runBlocking {
+        val id = controller.newSession()
+        sendAndWait(id, "find the conclusion", listOf(PendingAttachment.Note(42)))
+        assertTrue(model.calls.single().user.text.contains("note_id=42"))
+        assertTrue(model.calls.single().user.text.contains("search_in_note"))
+        assertEquals(42L, JSONArray(db.chatDao().messages(id).first().attachments).getJSONObject(0).getLong("noteId"))
     }
 
     @Test fun autoSearchAddsExcerptsWithoutToolCalling() = runBlocking {

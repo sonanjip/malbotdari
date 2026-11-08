@@ -167,6 +167,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 vm.pending.forEach { a ->
                     val label = when (a) {
                         is PendingAttachment.Item -> vm.pendingLabels[a.itemId] ?: "#${a.itemId}"
+                        is PendingAttachment.Note -> vm.noteLabels[a.noteId] ?: "Jogakbo #${a.noteId}"
                         is PendingAttachment.Photo -> stringResource(R.string.chat_photo)
                     }
                     InputChip(
@@ -217,7 +218,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 }
             }
         }
-        if (vm.pending.any { it is PendingAttachment.Photo } && !images) {
+        if (vm.pending.any { it is PendingAttachment.Photo || it is PendingAttachment.Item } && !images) {
             Text(stringResource(R.string.chat_no_vision), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
@@ -327,6 +328,10 @@ private fun MessageRow(sessionId: Long, m: ChatMessageEntity, names: Map<Long, S
             ChatViewModel.attachmentsOf(m).forEach { a ->
                 if (a.photoFile != null) {
                     io.github.taehunkim.malbotdari.ui.common.LocalPhoto(File(androidx.compose.ui.platform.LocalContext.current.filesDir, "chat/$sessionId/${a.photoFile}"), Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)))
+                } else if (a.noteId != null) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    AssistChip(onClick = { runCatching { context.startActivity(io.github.taehunkim.jogakbo.sdk.Jogakbo.openNoteIntent(a.noteId)) } },
+                        label = { Text(a.label.ifBlank { vm.noteLabels[a.noteId] ?: "Jogakbo #${a.noteId}" }) })
                 } else if (a.itemId != null) {
                     AssistChip(onClick = { onOpenItem(a.itemId) }, label = { Text(names[a.itemId] ?: "#${a.itemId}", maxLines = 1) })
                 }

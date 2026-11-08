@@ -90,3 +90,8 @@ Jogakbo) and `read_note(note_id, offset?, max_chars?)` (title, summary, original
 prompt then tells the model to use them for things the user wrote down, saved, watched or recorded. Scheduled runs
 get them too when the chat has them on. Tool cards list the found notes; a tap opens the note in Jogakbo
 (`Jogakbo.openNoteIntent`). Write tools (adding notes from the chat) are planned in Jogakbo's roadmap.
+
+### Referenced attachments
+`NEW_CHAT` accepts `item_ids` (Nunsori) and `note_ids` (Jogakbo), ten combined. The composer shows references; the model receives headers rather than the first 3000 characters. It calls `search_in_file` / `search_in_note` to retrieve passages, then paginated read tools when needed. Older companion apps without these tools need updating. Image and video attachments suggest `view_image`, which obtains a 1024px preview from Nunsori. Video previews are a representative frame, not the full video; document previews are not every page. The tool queues up to two images including picker photos, then the controller generates a replacement answer with the images, original question, bounded tool results and conversation history. The initial placeholder answer is not stored. A text-only model receives an explicit explanation. Attachment IDs are replayed in later history so the model can retrieve the image again after cache loss. Tool availability follows the file-read switch.
+
+For attachment questions, tool schemas omit verbose argument descriptions and shorten tool descriptions to leave room for passages in a 4K window. Required fields, argument types, enums and enabled actions remain available. An image follow-up recalculates the history budget for the additional descriptions and tool results.

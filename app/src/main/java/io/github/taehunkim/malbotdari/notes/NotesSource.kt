@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 /** The user's notes as the chat sees them: Jogakbo's search and read tools. An interface so tests can use a fake. */
 interface NotesSource {
     /** Tools Jogakbo offers to the model (empty when Jogakbo is missing or has not allowed this app). */
+    suspend fun info(ids: List<Long>): List<io.github.taehunkim.jogakbo.sdk.NoteInfo> = emptyList()
     suspend fun tools(): List<JogakboTool>
     suspend fun runTool(name: String, argsJson: String): String
 }
@@ -23,6 +24,7 @@ data class NotesState(val status: Status, val version: String? = null) {
 
 /** [NotesSource] through Jogakbo's service. [state] follows what the last call saw. */
 class JogakboBridge(context: Context, val client: JogakboClient = JogakboClient(context)) : NotesSource {
+    override suspend fun info(ids: List<Long>) = client.notes(ids)
     private val _state = MutableStateFlow(NotesState(NotesState.Status.UNKNOWN))
     val state: StateFlow<NotesState> = _state.asStateFlow()
     @Volatile private var cachedTools: List<JogakboTool>? = null

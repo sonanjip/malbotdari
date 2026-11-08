@@ -23,3 +23,5 @@ In the app's private storage: the chats (messages, tool calls and results), phot
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC` | A task run in progress |
 
 Calendar and contacts need no permission: the system app opens with the fields filled in and you press Save there.
+
+Images requested through `view_image` are read from Nunsori previews into memory and sent only to OndolSaem on this phone. File and note attachment references are stored with the chat; retrieved previews are not saved as separate chat photos.

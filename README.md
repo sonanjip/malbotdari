@@ -56,3 +56,5 @@ The two parts have their own backronyms: **MALBOT**, My Assistant, Local, Bridgi
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Files and notes can be attached from Nunsori and Jogakbo. The model searches inside each attachment for relevant passages, and requests image previews with `view_image` (vision model required; two images per question).

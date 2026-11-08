@@ -35,7 +35,7 @@ object ChatToolNames {
     val ACTION_TOOLS = setOf(CALENDAR, CONTACT, MOVE, DELETE)
 
     /** The chip that switches a Nunsori or Jogakbo tool on or off. */
-    fun switchOf(tool: String): String = when (tool) { DELETE -> MOVE; READ_NOTE -> NOTES; else -> tool }
+    fun switchOf(tool: String): String = when (tool) { DELETE -> MOVE; "search_in_file", "view_image" -> READ; "search_in_note", READ_NOTE -> NOTES; else -> tool }
 }
 
 /**
@@ -86,6 +86,27 @@ class JogakboChatTool(private val spec: JogakboTool, private val notes: NotesSou
     override fun execute(args: JSONObject): String = runBlocking {
         try { notes.runTool(name, args.toString()) } catch (e: Exception) {
             "Error: the notes (Jogakbo) are not available: ${e.message ?: e.javaClass.simpleName}"
+        }
+    }
+}
+
+/** Keeps the same tool and schema semantics while reducing documentation tokens for small-window attachment chats. */
+class CompactChatTool(private val delegate: ChatTool) : ChatTool by delegate {
+    override val description = delegate.description.take(180)
+    override val parameters: String = compact(JSONObject(delegate.parameters)).toString()
+    companion object {
+        private fun compact(o: JSONObject): JSONObject {
+            val keys = o.keys().asSequence().toList()
+            for (key in keys) {
+                if (key == "description") { o.remove(key); continue }
+                when (val value = o.opt(key)) {
+                    is JSONObject -> if (key == "properties" || key == "definitions" || key == "\$defs") {
+                        value.keys().asSequence().toList().forEach { property -> (value.opt(property) as? JSONObject)?.let { compact(it) } }
+                    } else compact(value)
+                    is JSONArray -> for (i in 0 until value.length()) (value.opt(i) as? JSONObject)?.let { compact(it) }
+                }
+            }
+            return o
         }
     }
 }

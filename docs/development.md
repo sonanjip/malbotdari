@@ -21,3 +21,5 @@ Signing reads `NUNSORI_STORE_FILE`, `NUNSORI_STORE_PASSWORD`, `NUNSORI_KEY_ALIAS
 ## Schema and version changes
 
 `@Entity` changes: bump `AppDatabase.VERSION`, add a migration to `ALL_MIGRATIONS`, commit the schema JSON in `app/schemas`, add a migration test. No destructive fallback. App version: `appVersionName` in `app/build.gradle.kts`.
+
+Tool-schema compaction tests run against a real JVM `org.json` implementation (test-only dependency), checking required arguments, enums and properties named `description`.

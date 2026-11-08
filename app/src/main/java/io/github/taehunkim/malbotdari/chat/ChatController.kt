@@ -42,6 +42,7 @@ import java.util.UUID
 /** Something the user attached to a message before sending (a Nunsori file or a photo from the picker). */
 sealed interface PendingAttachment {
     data class Item(val itemId: Long) : PendingAttachment
+    data class Note(val noteId: Long) : PendingAttachment
     data class Photo(val uri: Uri) : PendingAttachment
 }
 
@@ -84,6 +85,9 @@ class ChatController(
     val busy: Boolean get() = job?.isActive == true || scheduledRunning
 
     private val queued = HashMap<Long, List<Long>>()
+    private val queuedNotes = HashMap<Long, List<Long>>()
+    fun queueNotes(sessionId: Long, ids: List<Long>) { synchronized(queuedNotes) { queuedNotes[sessionId] = ids } }
+    fun takeQueuedNotes(sessionId: Long): List<Long> = synchronized(queuedNotes) { queuedNotes.remove(sessionId).orEmpty() }
 
     /** Files chosen elsewhere (Search) to be attached to the next message of [sessionId]. */
     fun queueAttachments(sessionId: Long, itemIds: List<Long>) { synchronized(queued) { queued[sessionId] = itemIds } }
@@ -170,10 +174,17 @@ class ChatController(
                         attachmentsJson.put(JSONObject().put("itemId", a.itemId))
                         extra.append(excerptOf(a.itemId))
                     }
-                    is PendingAttachment.Photo -> {
+                    is PendingAttachment.Note -> {
+                            val info = runCatching { notes?.info(listOf(a.noteId))?.firstOrNull() }.getOrNull()
+                            attachmentsJson.put(JSONObject().put("noteId", a.noteId).put("title", info?.title.orEmpty()))
+                            extra.append("[Attached note: ${info?.title.orEmpty()} (note_id=${a.noteId})] Use search_in_note with this note_id and your question, then read_note for more.\n\n")
+                        }
+                        is PendingAttachment.Photo -> {
                         val file = savePhoto(sessionId, a.uri) ?: continue
                         attachmentsJson.put(JSONObject().put("photo", file.name))
-                        if (model.supportsImages) images += file.readBytes() else extra.append(PHOTO_UNSUPPORTED)
+                        if (!model.supportsImages) extra.append(PHOTO_UNSUPPORTED)
+                        else if (images.size < 2) images += file.readBytes()
+                        else extra.append("[Only two images can be viewed per question; this photo was not sent.]\n")
                     }
                 }
                 if (task != null) extra.append(SCHEDULED_NOTE).append(if (actions != null) SCHEDULED_ACTIONS_NOTE else "").append(extraContext).append('\n')
@@ -195,8 +206,15 @@ class ChatController(
 
                 // History = stored user/assistant turns before this one, trimmed to the context budget.
                 val stored = chat.messages(sessionId).dropLast(1).filter { it.role != ChatRole.TOOL }
-                    .map { ChatTurn(if (it.role == ChatRole.USER) TurnRole.USER else TurnRole.ASSISTANT, it.text) }
-                val tools = if (task != null) scheduledTools(session) else enabledTools(session)
+                    .map { ChatTurn(if (it.role == ChatRole.USER) TurnRole.USER else TurnRole.ASSISTANT, it.text + (it.attachments?.let { a -> "\n[Attachment references: $a]" }.orEmpty())) }
+                val imageTool = ViewImageTool(files, model.supportsImages, (2 - images.size).coerceAtLeast(0))
+                val baseTools = if (task != null) scheduledTools(session) else enabledTools(session)
+                val recentAttachments = chat.messages(sessionId).takeLast(8).mapNotNull { it.attachments }.joinToString()
+                val hasReferences = pending.any { it is PendingAttachment.Item || it is PendingAttachment.Note } ||
+                    recentAttachments.contains("itemId") || recentAttachments.contains("noteId")
+                val offered = baseTools + if (ChatToolNames.READ in session.enabledTools.split(',')) listOf(imageTool) else emptyList()
+                // Keep enabled actions available, but omit verbose argument documentation to leave room for passages.
+                val tools = if (hasReferences) offered.map { CompactChatTool(it) } else offered
                 // named people (Nunsori's People screen) go into the system prompt when the model can search by person
                 val names = if (tools.any { it.name == ChatToolNames.SEARCH }) runCatching { files.people() }.getOrNull().orEmpty().take(MAX_NAMES) else emptyList()
                 val budget = (contextTokens * ContextBudget.HISTORY_SHARE).toInt() - ContextBudget.estimateTokens(modelText) - SYSTEM_TOKENS -
@@ -209,6 +227,7 @@ class ChatController(
                 val key = "$sessionId|${tools.joinToString { it.name }}|${custom.hashCode()}|${todayString()}|${names.hashCode()}"
                 _run.value = ChatRun(sessionId, ChatPhase.GENERATING, trimmed = history.dropped > 0)
                 var toolCalls = 0
+                val toolContext = StringBuilder()
                 model.reply(key, systemPrompt(custom, tools.any { it.name == ChatToolNames.CALENDAR }, tools.any { it.name == ChatToolNames.MOVE }, names, tools.any { it.name == ChatToolNames.NOTES }), history.turns, ChatTurn(TurnRole.USER, modelText, images), tools).collect { e ->
                     when (e) {
                         is ChatEvent.Token -> {
@@ -216,6 +235,7 @@ class ChatController(
                             _run.value = ChatRun(sessionId, ChatPhase.GENERATING, answer.toString(), trimmed = history.dropped > 0)
                         }
                         is ChatEvent.ToolRan -> {
+                            toolContext.append(e.name).append(": ").append(ContextBudget.clip(e.result, 1500)).append("\n")
                             chat.insertMessage(
                                 ChatMessageEntity(
                                     sessionId = sessionId, role = ChatRole.TOOL, text = ContextBudget.clip(e.result, MAX_STORED_RESULT),
@@ -223,6 +243,20 @@ class ChatController(
                                 ),
                             )
                             if (++toolCalls > MAX_TOOL_CALLS) throw TooManyToolCalls()
+                        }
+                    }
+                }
+                if (imageTool.loaded.isNotEmpty()) {
+                    // A new conversation key forces the host to replay the bounded context with the requested images.
+                    // Previous images are retrieved again by view_image on later questions, rather than relying on a cache.
+                    answer = StringBuilder()
+                    val request = modelText + "\n\nImages requested via view_image: " + imageTool.loaded.joinToString { it.first } +
+                        "\n" + ContextBudget.clip(toolContext.toString(), 2500) + "\nAnswer the original question using these images."
+                    model.reply("$key|vision|${UUID.randomUUID()}", systemPrompt(custom, false, false, names, false),
+                        ContextBudget.trim(stored, ((contextTokens * ContextBudget.HISTORY_SHARE).toInt() - ContextBudget.estimateTokens(request) - SYSTEM_TOKENS - ContextBudget.estimateTokens(custom)).coerceAtLeast(0)).turns, ChatTurn(TurnRole.USER, request, images + imageTool.loaded.map { it.second }), emptyList()).collect { e ->
+                        if (e is ChatEvent.Token) {
+                            answer.append(e.text)
+                            _run.value = ChatRun(sessionId, ChatPhase.GENERATING, answer.toString(), trimmed = history.dropped > 0)
                         }
                     }
                 }
@@ -309,9 +343,10 @@ class ChatController(
 
     private suspend fun excerptOf(itemId: Long): String {
         val item = runCatching { files.items(listOf(itemId)).firstOrNull() }.getOrNull() ?: return ""
-        val body = runCatching { files.readText(itemId, ATTACHMENT_CHARS) }.getOrDefault("")
         return "[Attached file: ${item.name} (item_id=$itemId, ${item.kind})]\n" +
-            (body.ifEmpty { "(no indexed text; ask for details or use the image itself)" }) + "\n\n"
+            if (item.kind == "image" || item.kind == "video")
+                "Call view_image(item_id=$itemId) to see the image or representative video frame. For video audio, use search_in_file and read_file.\n\n"
+            else "Use search_in_file(item_id=$itemId, query=your question) to locate relevant passages, then read_file for more. File contents are not included here.\n\n"
     }
 
     private suspend fun autoSearchBlock(question: String): String {
@@ -354,7 +389,7 @@ class ChatController(
             (if (people.isEmpty()) "" else "People the user named in their photos: ${people.joinToString()}. When the user mentions one of them, pass that name as person to search_index" +
                 (if (withFiles) ", move_files or delete_files (person instead of item_ids moves or deletes every photo of that person)" else "") + ". ") +
             "Answer from the user's own files when the question is about them: use the search_index tool to find files and read_file to read them, " +
-            "if those tools are available. Name the files (and page or time) your answer is based on. " +
+            "if those tools are available. Attachments contain references only. For images call view_image before describing them; for attached documents or notes call search_in_file or search_in_note to find relevant passages. Never claim to have read unseen content. Name the files (and page or time) your answer is based on. " +
             (if (withNotes) "The user's notes (memos, saved web pages, YouTube videos and recordings, each with a summary) are in Jogakbo: " +
                 "use search_notes to find notes and read_note to read one when the question is about something they wrote down, saved, watched or recorded; name the notes you used. " else "") +
             "If nothing relevant is found, say so instead of guessing. Keep answers concise and reply in the language the user writes in." +
