@@ -23,3 +23,5 @@ Signing reads `NUNSORI_STORE_FILE`, `NUNSORI_STORE_PASSWORD`, `NUNSORI_KEY_ALIAS
 `@Entity` changes: bump `AppDatabase.VERSION`, add a migration to `ALL_MIGRATIONS`, commit the schema JSON in `app/schemas`, add a migration test. No destructive fallback. App version: `appVersionName` in `app/build.gradle.kts`.
 
 Tool-schema compaction tests run against a real JVM `org.json` implementation (test-only dependency), checking required arguments, enums and properties named `description`.
+
+The `attachments/BoundedImport` helper is groundwork for local attachment imports. It copies to a new app-private destination with a caller-provided byte budget, removes a partial file on failure, and leaves input-stream ownership to the caller. It is not yet connected to a share receiver or an attachment processing pipeline; callers must enforce file-count and aggregate limits, manage cancellation and cleanup, and validate content separately. Its pure JVM tests can be run independently of Android, but they do not replace Android or migration tests.
