@@ -27,3 +27,5 @@ Image previews requested by `view_image` and referenced attachments from Jogakbo
 
 
 - Verify the new local attachment processing and migration on device, including large files, model unavailability, and interruption/retry. Confirm Room schema 2 against KSP output before release.
+
+- Improve share preparation to identify individual rejected items and reasons and allow exclusion before copying; current errors are aggregated after copying. Verify prompt-injection defenses with representative on-device models.

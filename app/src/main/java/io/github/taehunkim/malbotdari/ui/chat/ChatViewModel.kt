@@ -86,12 +86,16 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     fun refreshHost() { viewModelScope.launch { c.models.refresh() } }
 
     private val sharedDraft = io.github.taehunkim.malbotdari.sharing.SharedDraft.load(c.context, sessionId)
+    var importFailed by mutableStateOf(sharedDraft?.rejected == true)
+        private set
     private var draftState by mutableStateOf(sharedDraft?.text.orEmpty())
     var draft: String
         get() = draftState
         set(value) { draftState = value; persistSharedDraft() }
     /** Attachments waiting for the next send. */
-    var pending by mutableStateOf<List<PendingAttachment>>(sharedDraft?.images.orEmpty().map { PendingAttachment.Photo(Uri.fromFile(java.io.File(c.context.filesDir, "chat/$sessionId/$it"))) } + listOfNotNull(sharedDraft?.quote?.takeIf { it.isNotBlank() }?.let { PendingAttachment.Quote(it) }))
+    var pending by mutableStateOf<List<PendingAttachment>>(sharedDraft?.images.orEmpty().map { PendingAttachment.Photo(Uri.fromFile(java.io.File(c.context.filesDir, "chat/$sessionId/$it"))) } +
+        listOfNotNull(sharedDraft?.quote?.takeIf { it.isNotBlank() }?.let { PendingAttachment.Quote(it) }) +
+        sharedDraft?.itemIds.orEmpty().map { PendingAttachment.Item(it) } + sharedDraft?.noteIds.orEmpty().map { PendingAttachment.Note(it) })
         private set
     var noteLabels by mutableStateOf<Map<Long, String>>(emptyMap())
         private set
@@ -107,21 +111,23 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     init {
-        // Files chosen in Nunsori's Search ("Ask in chat") arrive as pending attachments.
-        val noteIds = controller.takeQueuedNotes(sessionId)
-        pending = pending + noteIds.map { PendingAttachment.Note(it) }
+        val queuedNotes = controller.takeQueuedNotes(sessionId)
+        val queuedItems = controller.takeQueuedAttachments(sessionId)
+        pending = (pending + queuedNotes.map { PendingAttachment.Note(it) } + queuedItems.map { PendingAttachment.Item(it) }).distinct()
+        if (queuedNotes.isNotEmpty() || queuedItems.isNotEmpty()) persistSharedDraft()
+        val noteIds = pending.filterIsInstance<PendingAttachment.Note>().map { it.noteId }
+        val itemIds = pending.filterIsInstance<PendingAttachment.Item>().map { it.itemId }
         if (noteIds.isNotEmpty()) viewModelScope.launch {
             noteLabels = runCatching { c.notes.info(noteIds).associate { it.noteId to it.title } }.getOrDefault(emptyMap())
         }
-        val queued = controller.takeQueuedAttachments(sessionId)
-        if (queued.isNotEmpty()) viewModelScope.launch {
-            pending = pending + queued.map { PendingAttachment.Item(it) }
-            pendingLabels = runCatching { c.files.items(queued).associate { it.itemId to it.name } }.getOrDefault(emptyMap())
+        if (itemIds.isNotEmpty()) viewModelScope.launch {
+            pendingLabels = runCatching { c.files.items(itemIds).associate { it.itemId to it.name } }.getOrDefault(emptyMap())
         }
     }
 
     fun send() {
-        val text = draft.trim()
+        val snapshot = draftSnapshot()
+        val text = snapshot.text.trim()
         val sent = pending.toList()
         viewModelScope.launch {
             val imports = io.github.taehunkim.malbotdari.sharing.SharedDraft.imports.value[sessionId] ?: 0
@@ -131,10 +137,10 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
             val local = items.filter { !it.sent }.map { PendingAttachment.Local(it.attachmentId) }
             if (text.isEmpty() && sent.isEmpty() && local.isEmpty()) return@launch
             controller.send(sessionId, text, sent + local) {
-                viewModelScope.launch {
-                    if (draft.trim() == text && pending == sent) {
-                        draft = ""; pending = emptyList()
-                        io.github.taehunkim.malbotdari.sharing.SharedDraft.clear(c.context, sessionId)
+                c.appScope.launch(kotlinx.coroutines.Dispatchers.Main.immediate) {
+                    if (io.github.taehunkim.malbotdari.sharing.SharedDraft.clearIfUnchanged(c.context, sessionId, snapshot) &&
+                        draftSnapshot() == snapshot) {
+                        draftState = ""; pending = emptyList()
                     }
                 }
             }
@@ -143,9 +149,7 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
 
     fun stop() = controller.stop()
     fun dismissError() = controller.dismissError()
-    fun addPhoto(uri: Uri) { pending = pending + PendingAttachment.Photo(uri) }
-    var importFailed by mutableStateOf(sharedDraft?.rejected == true)
-        private set
+    fun addPhoto(uri: Uri) { pending = pending + PendingAttachment.Photo(uri); persistSharedDraft() }
     fun dismissImportError() { importFailed = false; persistSharedDraft(forceRejected = false) }
     fun addFiles(uris: List<Uri>) {
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).setType("*/*")
@@ -182,13 +186,19 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     } }
     fun removePending(a: PendingAttachment) { pending = pending - a; persistSharedDraft() }
 
-    private fun persistSharedDraft(forceRejected: Boolean? = null) {
+    private fun draftSnapshot(forceRejected: Boolean? = null): io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft {
         val images = pending.filterIsInstance<PendingAttachment.Photo>().mapNotNull { photo ->
             photo.uri.path?.let { java.io.File(it) }?.takeIf { photo.uri.scheme == "file" && it.name.startsWith("incoming-") }?.name
         }
-        io.github.taehunkim.malbotdari.sharing.SharedDraft.save(c.context, sessionId,
-            io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft(draft, images, pending.filterIsInstance<PendingAttachment.Quote>().firstOrNull()?.text.orEmpty(),
-                forceRejected ?: (importFailed || io.github.taehunkim.malbotdari.sharing.SharedDraft.load(c.context, sessionId)?.rejected == true)))
+        return io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft(
+            draft, images, pending.filterIsInstance<PendingAttachment.Quote>().firstOrNull()?.text.orEmpty(),
+            forceRejected ?: (importFailed || io.github.taehunkim.malbotdari.sharing.SharedDraft.load(c.context, sessionId)?.rejected == true),
+            pending.filterIsInstance<PendingAttachment.Item>().map { it.itemId }, pending.filterIsInstance<PendingAttachment.Note>().map { it.noteId },
+        )
+    }
+
+    private fun persistSharedDraft(forceRejected: Boolean? = null) {
+        io.github.taehunkim.malbotdari.sharing.SharedDraft.savePreservingRejection(c.context, sessionId, draftSnapshot(forceRejected), replaceRejection = forceRejected != null)
     }
 
     fun toggleTool(name: String) = viewModelScope.launch {

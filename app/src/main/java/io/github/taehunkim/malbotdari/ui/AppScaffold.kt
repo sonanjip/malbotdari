@@ -61,7 +61,7 @@ private fun MainScaffold(openChat: Long?, onChatOpened: () -> Unit) {
     val route = entry?.destination?.route.orEmpty()
     LaunchedEffect(openChat) {
         if (openChat != null) {
-            nav.navigate("chat/$openChat") { launchSingleTop = true; popUpTo(ROUTE_CHATS) }
+            nav.navigate("chat/$openChat") { launchSingleTop = true }
             onChatOpened()
         }
     }

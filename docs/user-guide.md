@@ -38,3 +38,5 @@ Extraction is bounded to 25 MiB for plain text, 500 PDF pages, four hours of aud
 Imported files are processed automatically on the device. Sending waits while files are copied, extracted, transcribed, or indexed; retry a failed attachment or remove it to continue. If copying fails, select the file again if desired, then acknowledge exclusion of the failed import.
 
 Use Reprocess after adding or changing the embedding model to rebuild an attachment's searchable chunks. The app may use keyword matching when embeddings are unavailable. Office archive entries above 16 MiB cannot be extracted.
+
+Unsent chat drafts are saved, including selected Nunsori files and Jogakbo notes. Opening a shared item does not discard the draft in the chat you were using. Accepted local files show their name, reported type, size and processing status; use the remove control to exclude one. Files are copied before this review. Rejected files are reported together, without a separate name or reason for each.

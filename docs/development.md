@@ -37,3 +37,5 @@ Attachment tests include migration/cascade and semantic/keyword ranking. They re
 `ProcessTextAliasTest` launches the contextual-action alias, checks that it targets `MainActivity`, and verifies a quoted draft is created without sending a message.
 
 Attachment readiness, shared image/caption import, OCR context, image tool argument validation, and character-offset reads have regression tests.
+
+Draft reopening, incoming-share navigation, source-content prompt boundaries and extensionless Office MIME parsing have regression coverage.

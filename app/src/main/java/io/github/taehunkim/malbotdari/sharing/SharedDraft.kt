@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import io.github.taehunkim.malbotdari.attachments.BoundedImport
 import io.github.taehunkim.malbotdari.attachments.ImportBudget
+import io.github.taehunkim.malbotdari.attachments.AttachmentFormat
 import io.github.taehunkim.malbotdari.data.db.AttachmentDao
 import io.github.taehunkim.malbotdari.data.db.AttachmentEntity
 import android.provider.OpenableColumns
@@ -32,7 +33,10 @@ object SharedDraft {
         val count = (_imports.value[sessionId] ?: 0) - 1
         _imports.value = if (count > 0) _imports.value + (sessionId to count) else _imports.value - sessionId
     }
-    data class Draft(val text: String, val images: List<String>, val quote: String = "", val rejected: Boolean = false)
+    data class Draft(
+        val text: String, val images: List<String>, val quote: String = "", val rejected: Boolean = false,
+        val itemIds: List<Long> = emptyList(), val noteIds: List<Long> = emptyList(),
+    )
 
     suspend fun receive(context: Context, sessionId: Long, intent: Intent, dao: AttachmentDao? = null, persist: Boolean = true, onImported: (Long) -> Unit = {}): Draft = importLock.withLock {
         val extra = when (intent.action) {
@@ -57,17 +61,15 @@ object SharedDraft {
             val name = runCatching { context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0) else null
             } }.getOrNull()?.take(255).orEmpty().ifBlank { "attachment" }
-            val extension = name.substringAfterLast('.', "").lowercase()
-            val supported = mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("text/") ||
-                mime == "application/pdf" || extension in setOf("txt", "md", "csv", "tsv", "pdf", "docx", "pptx", "xlsx", "odt", "odp", "ods", "mp3", "m4a", "wav", "ogg", "opus", "flac", "aac")
-            if (!budget.hasSlot() || !supported || (!mime.startsWith("image/") && dao == null)) { rejected = true; continue }
+            val supported = AttachmentFormat.supported(name, mime)
+            if (!budget.hasSlot() || !supported || (!mime.startsWith("image/", ignoreCase = true) && dao == null)) { rejected = true; continue }
             val file = File(dir, "incoming-${UUID.randomUUID()}")
             val ok = runCatching {
                 require(uri.scheme == "content")
                 context.contentResolver.openInputStream(uri)!!.use { BoundedImport.copy(it, file, budget.nextLimit()) }
             }.isSuccess
             if (!ok) { rejected = true; continue }
-            if (dao == null && mime.startsWith("image/")) images += file.name
+            if (dao == null && mime.startsWith("image/", ignoreCase = true)) images += file.name
             else {
                 val id = try {
                     requireNotNull(dao).insert(AttachmentEntity(sessionId = sessionId, name = name, mime = mime, fileName = file.name, size = file.length(), state = "QUEUED"))
@@ -100,7 +102,7 @@ object SharedDraft {
     }
 
     fun save(context: Context, id: Long, draft: Draft) = synchronized(draftLock) {
-        val value = JSONObject().put("text", draft.text).put("images", JSONArray(draft.images)).put("quote", draft.quote).put("rejected", draft.rejected).toString()
+        val value = JSONObject().put("text", draft.text).put("images", JSONArray(draft.images)).put("quote", draft.quote).put("rejected", draft.rejected).put("itemIds", JSONArray(draft.itemIds)).put("noteIds", JSONArray(draft.noteIds)).toString()
         context.getSharedPreferences("shared_drafts", Context.MODE_PRIVATE).edit().putString(id.toString(), value).apply()
     }
 
@@ -109,13 +111,28 @@ object SharedDraft {
             val raw = context.getSharedPreferences("shared_drafts", Context.MODE_PRIVATE).getString(id.toString(), null) ?: return null
             val o = JSONObject(raw)
             val a = o.getJSONArray("images")
-            Draft(o.optString("text"), (0 until a.length()).map { a.getString(it) }.filter { it.startsWith("incoming-") && !it.contains('/') }, o.optString("quote"), o.optBoolean("rejected"))
+            fun ids(key: String): List<Long> {
+                val arr = o.optJSONArray(key) ?: return emptyList()
+                return (0 until arr.length()).map { arr.optLong(it, -1) }.filter { it > 0 }.distinct()
+            }
+            Draft(o.optString("text"), (0 until a.length()).map { a.getString(it) }.filter { it.startsWith("incoming-") && !it.contains('/') },
+                o.optString("quote"), o.optBoolean("rejected"), ids("itemIds"), ids("noteIds"))
         }.getOrNull()
+    }
+
+    /** Draft edits cannot accidentally clear a concurrently recorded import failure. */
+    fun savePreservingRejection(context: Context, id: Long, draft: Draft, replaceRejection: Boolean = false) = synchronized(draftLock) {
+        val rejected = if (replaceRejection) draft.rejected else draft.rejected || load(context, id)?.rejected == true
+        save(context, id, draft.copy(rejected = rejected))
     }
 
     fun setRejected(context: Context, id: Long, rejected: Boolean) = synchronized(draftLock) {
         val current = load(context, id) ?: Draft("", emptyList())
         save(context, id, current.copy(rejected = rejected))
+    }
+
+    fun clearIfUnchanged(context: Context, id: Long, expected: Draft): Boolean = synchronized(draftLock) {
+        if (load(context, id) != expected) false else { clear(context, id); true }
     }
 
     fun clear(context: Context, id: Long) = synchronized(draftLock) {

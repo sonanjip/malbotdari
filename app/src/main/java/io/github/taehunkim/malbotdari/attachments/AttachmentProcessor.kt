@@ -48,7 +48,7 @@ class AttachmentProcessor(private val context: Context, private val dao: Attachm
             require(file.isFile && file.parentFile?.canonicalFile == File(context.filesDir, "chat/$session").canonicalFile) { "Original file is missing" }
             val extracted = extract(item, file)
             val text = extracted.take(MAX_CHARS)
-            require(text.isNotBlank() || item.mime.startsWith("image/")) { "No text was extracted" }
+            require(text.isNotBlank() || item.mime.startsWith("image/", ignoreCase = true)) { "No text was extracted" }
             val parts = text.chunked(CHUNK_CHARS)
             val embeddingLease = try { client.acquire(OndolSaem.Categories.EMBEDDING) }
                 catch (e: CancellationException) { throw e } catch (_: Exception) { null }
@@ -70,15 +70,16 @@ class AttachmentProcessor(private val context: Context, private val dao: Attachm
     }
 
     private suspend fun extract(item: AttachmentEntity, file: File): String {
-        val ext = item.name.substringAfterLast('.', "").lowercase()
+        val ext = AttachmentFormat.extension(item.name, item.mime)
+        val mime = item.mime.substringBefore(';').trim().lowercase(java.util.Locale.ROOT)
         return when {
-            item.mime.startsWith("image/") -> client.acquire(OndolSaem.Categories.OCR).use { client.recognizeText(Photos.jpeg(context, Uri.fromFile(file), 1600)) }
-            item.mime.startsWith("audio/") || ext in setOf("mp3", "m4a", "wav", "ogg", "opus", "flac", "aac") -> audio(file)
-            ext == "pdf" || item.mime == "application/pdf" -> pdf(file)
+            mime.startsWith("image/") -> client.acquire(OndolSaem.Categories.OCR).use { client.recognizeText(Photos.jpeg(context, Uri.fromFile(file), 1600)) }
+            mime.startsWith("audio/") || ext in setOf("mp3", "m4a", "wav", "ogg", "opus", "flac", "aac") -> audio(file)
+            ext == "pdf" || mime == "application/pdf" -> pdf(file)
             ext in setOf("docx", "pptx", "xlsx", "odt", "odp", "ods") -> ZipSource.fromFile(file).use { zip ->
                 (OfficeParsers.parse(ext, zip) ?: error("Unsupported document")).units.joinToString("\n\n") { unit -> (unit.label?.let { "$it\n" } ?: "") + unit.text }
             }
-            ext in setOf("txt", "md", "csv", "tsv") || item.mime.startsWith("text/") -> {
+            ext in setOf("txt", "md", "csv", "tsv") || mime.startsWith("text/") -> {
                 require(file.length() <= MAX_TEXT_BYTES) { "Text file is too large to extract" }
                 TextDecoder.decode(file.readBytes()) ?: error("Not a text file")
             }

@@ -103,3 +103,5 @@ Local attachments show a processing status in chat and failed processing can be 
 Imported files are processed automatically on the device. Sending waits while files are copied, extracted, transcribed, or indexed; retry a failed attachment or remove it to continue. If copying fails, select the file again if desired, then acknowledge exclusion of the failed import.
 
 `search_in_attachment(attachment_id, query, limit)` returns up to five matches and their character offsets. `read_attachment(attachment_id, offset, max_chars)` reads a bounded slice. `view_image` requires exactly one of `item_id` and `attachment_id`. For a text-only model, recognized text from an attached image accompanies the question.
+
+Selected text, file names, attachments, OCR, transcripts, search results and tool outputs are treated as untrusted source material. The system prompt tells the model not to obey commands in that material or invoke tools because a source requests it; this is a model instruction, not a guarantee against prompt injection. Selected text and direct OCR excerpts are encoded as JSON strings in the prompt.

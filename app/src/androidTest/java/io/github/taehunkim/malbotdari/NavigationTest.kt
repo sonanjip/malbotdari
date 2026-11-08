@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.taehunkim.malbotdari.data.prefs.SettingsStore
@@ -38,4 +40,29 @@ class NavigationTest {
         rule.onNodeWithTag("nav_up").performClick()
         rule.onNodeWithTag("nav_settings").assertIsDisplayed()
     }
+    @Test fun incomingShareKeepsExistingUnsentDraft() {
+        val app = rule.activity.application as MalbotdariApp
+        val container = app.container
+        val id = runBlocking {
+            container.settings.setOnboardingDone(true)
+            container.chat.newSession().also { container.db.chatDao().rename(it, "Draft preservation test") }
+        }
+        try {
+            rule.waitUntil(10_000) { runCatching { rule.onNodeWithText("Draft preservation test").assertIsDisplayed() }.isSuccess }
+            rule.onNodeWithText("Draft preservation test").performClick()
+            rule.waitUntil(10_000) { runCatching { rule.onNodeWithTag("chat_input").assertIsDisplayed() }.isSuccess }
+            rule.onNodeWithTag("chat_input").performTextInput("Unsent original question")
+            rule.runOnIdle {
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).setClass(rule.activity, MainActivity::class.java)
+                    .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "Incoming shared text")
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                rule.activity.startActivity(intent)
+            }
+            rule.waitUntil(10_000) { runCatching { rule.onNodeWithTag("chat_input").assertTextContains("Incoming shared text") }.isSuccess }
+            rule.runOnIdle { rule.activity.onBackPressedDispatcher.onBackPressed() }
+            rule.waitUntil(10_000) { runCatching { rule.onNodeWithTag("chat_input").assertTextContains("Unsent original question") }.isSuccess }
+            org.junit.Assert.assertEquals("Unsent original question", io.github.taehunkim.malbotdari.sharing.SharedDraft.load(rule.activity, id)?.text)
+        } finally { runBlocking { container.chat.deleteSession(id) } }
+    }
+
 }

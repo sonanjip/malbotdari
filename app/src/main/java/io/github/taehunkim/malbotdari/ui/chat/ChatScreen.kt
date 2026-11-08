@@ -60,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -199,7 +200,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 else -> R.string.attachment_failed
             })
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${item.name} · $status" + (item.error?.let { ": $it" } ?: ""), Modifier.weight(1f), maxLines = 2)
+                Text("${item.name}\n${item.mime} · ${android.text.format.Formatter.formatShortFileSize(ctx, item.size)} · $status" + (item.error?.let { ": $it" } ?: ""), Modifier.weight(1f), maxLines = 2)
                 if (item.state == "FAILED" || item.state == "READY") androidx.compose.material3.TextButton(onClick = { vm.retryLocal(item.attachmentId) }) {
                     Text(stringResource(if (item.state == "READY") R.string.attachment_reprocess else R.string.attachment_retry))
                 }
@@ -240,7 +241,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 Icon(Icons.Filled.AttachFile, stringResource(R.string.attachment_choose_files))
             }
             OutlinedTextField(
-                vm.draft, { vm.draft = it }, Modifier.weight(1f), maxLines = 4,
+                vm.draft, { vm.draft = it }, Modifier.weight(1f).testTag("chat_input"), maxLines = 4,
                 placeholder = { Text(stringResource(R.string.chat_input_hint)) },
             )
             if (busy) {
@@ -251,7 +252,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 }
             }
         }
-        if ((vm.pending.any { it is PendingAttachment.Photo || it is PendingAttachment.Item } || localPending.any { it.mime.startsWith("image/") }) && !images) {
+        if ((vm.pending.any { it is PendingAttachment.Photo || it is PendingAttachment.Item } || localPending.any { it.mime.startsWith("image/", ignoreCase = true) }) && !images) {
             Text(stringResource(R.string.chat_no_vision), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
         }
     }

@@ -31,3 +31,5 @@ Text shared to Malbotdari is stored in a private draft until sent or the chat is
 Shared documents, audio and images are copied into private per-chat storage. Extracted text and embeddings are stored in the local chat database; OCR, transcription and embeddings are requested from the on-device OndolSaem host. Removing an attachment deletes its database records and private original; deleting its chat removes the chat directory.
 
 Files you pick or share are processed automatically on this device, including OCR for images and transcription for audio when the required OndolSaem models are available. Import errors are retained with the local draft until acknowledged.
+
+Unsent chat text and pending file and note references are saved in private app preferences and removed after an unchanged draft is sent or its chat is deleted.

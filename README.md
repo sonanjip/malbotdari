@@ -64,3 +64,5 @@ Android selected-text actions open a quoted attachment; sharing can open an edit
 Local files shared or picked in chat can be processed for search: text, PDF, Office/OpenDocument, images (OCR), and audio (transcription). Processing uses OndolSaem models and stays on device; a failed attachment can be retried.
 
 Local attachments are processed automatically; sending waits for processing or for failed imports to be resolved.
+
+Unsent drafts retain their text and selected file or note references when another share opens a chat.

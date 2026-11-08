@@ -50,8 +50,26 @@ class SharedDraftTest {
             SharedDraft.setRejected(context, id, true)
             assertEquals("Keep this question", SharedDraft.load(context, id)!!.text)
             assertTrue(SharedDraft.load(context, id)!!.rejected)
+            SharedDraft.savePreservingRejection(context, id, SharedDraft.Draft("New text", emptyList()))
+            assertTrue(SharedDraft.load(context, id)!!.rejected)
+            assertEquals("New text", SharedDraft.load(context, id)!!.text)
             SharedDraft.setRejected(context, id, false)
             assertFalse(SharedDraft.load(context, id)!!.rejected)
+        } finally { SharedDraft.clear(context, id) }
+    }
+
+    @Test fun ordinaryDraftReferencesSurviveReloadAndChangedDraftIsNotCleared() {
+        val id = System.nanoTime()
+        try {
+            val before = SharedDraft.Draft("Unsent question", emptyList(), itemIds = listOf(12, 34), noteIds = listOf(56))
+            SharedDraft.save(context, id, before)
+            assertEquals(before, SharedDraft.load(context, id))
+            val edited = before.copy(text = "Newer question")
+            SharedDraft.save(context, id, edited)
+            assertFalse(SharedDraft.clearIfUnchanged(context, id, before))
+            assertEquals(edited, SharedDraft.load(context, id))
+            assertTrue(SharedDraft.clearIfUnchanged(context, id, edited))
+            assertNull(SharedDraft.load(context, id))
         } finally { SharedDraft.clear(context, id) }
     }
 
@@ -84,6 +102,34 @@ class SharedDraftTest {
             java.io.File(context.filesDir, "chat/$session").deleteRecursively()
             SharedDraft.clear(context, session)
         } finally { context.contentResolver.delete(uri, null, null); db.close() }
+    }
+
+    @Test fun mixedShareKeepsNamesTypesAndSizesAndAllowsExclusion() = runBlocking {
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, io.github.taehunkim.malbotdari.data.db.AppDatabase::class.java).build()
+        val collection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val types = listOf("image/jpeg", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        val uris = types.mapIndexed { index, mime ->
+            context.contentResolver.insert(collection, android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, if (index == 0) "image.jpg" else "document")
+                put(android.provider.MediaStore.Downloads.MIME_TYPE, mime)
+            })!!
+        }
+        try {
+            uris.forEachIndexed { index, uri -> context.contentResolver.openOutputStream(uri)!!.use { it.write(ByteArray(index + 3)) } }
+            val session = db.chatDao().insertSession(io.github.taehunkim.malbotdari.data.db.ChatSessionEntity(title = "", enabledTools = "", autoSearch = false, createdAt = 1, updatedAt = 1))
+            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            val result = SharedDraft.receive(context, session, intent, db.attachmentDao())
+            assertFalse(result.rejected)
+            val items = db.attachmentDao().ofSession(session)
+            assertEquals(2, items.size)
+            assertEquals(types, items.map { it.mime })
+            assertEquals(listOf(3L, 4L), items.map { it.size })
+            assertTrue(items.all { it.name.isNotBlank() })
+            db.attachmentDao().delete(items[0].attachmentId, session)
+            assertEquals(listOf(items[1].attachmentId), db.attachmentDao().ofSession(session).map { it.attachmentId })
+            java.io.File(context.filesDir, "chat/$session").deleteRecursively()
+            SharedDraft.clear(context, session)
+        } finally { uris.forEach { context.contentResolver.delete(it, null, null) }; db.close() }
     }
 
     @Test fun fileUrisAreNeverImported() = runBlocking {

@@ -73,8 +73,9 @@ class MainActivity : AppCompatActivity() {
             val c = (application as MalbotdariApp).container
             lifecycleScope.launch {
                 val id = c.chat.newSession()
-                if (ids.isNotEmpty()) c.chat.queueAttachments(id, ids)
-                c.chat.queueNotes(id, intent.getLongArrayExtra("note_ids")?.toList().orEmpty().filter { it > 0 }.distinct().take(MAX_ITEMS - ids.size))
+                val noteIds = intent.getLongArrayExtra("note_ids")?.toList().orEmpty().filter { it > 0 }.distinct().take(MAX_ITEMS - ids.size)
+                io.github.taehunkim.malbotdari.sharing.SharedDraft.save(applicationContext, id,
+                    io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft("", emptyList(), itemIds = ids, noteIds = noteIds))
                 openChat.value = id
             }
         }
