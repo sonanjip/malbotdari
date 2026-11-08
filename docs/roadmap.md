@@ -23,3 +23,5 @@
 - Scheduled tasks run one at a time and need the chat model, so a run can be late when another answer is being generated or the phone is in Doze or an OEM sleep list (Samsung *Sleeping apps*); a new file counts only if it clearly stands out from the typical similarity of Nunsori's index (or contains all the query words) and the chat model confirms it; photos without text are not checked by the model.
 
 Image previews requested by `view_image` and referenced attachments from Jogakbo are implemented. Video viewing remains a representative-frame preview, and document previews do not select arbitrary pages. Attachment chats compact tool documentation to fit small context windows.
+
+- Extend Android sharing and chat attachments to local documents and audio, including durable processing states, OCR/ASR, and attachment search/read tools. The current share receiver accepts text and images only.

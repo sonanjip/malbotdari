@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -94,6 +95,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
     val images by vm.supportsImages.collectAsStateWithLifecycle()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val filesState by vm.files.collectAsStateWithLifecycle()
+    var selectedQuote by remember { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf(false) }
     var tasksOpen by remember { mutableStateOf(false) }
     val tasks by vm.tasks.collectAsStateWithLifecycle()
@@ -169,9 +171,10 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                         is PendingAttachment.Item -> vm.pendingLabels[a.itemId] ?: "#${a.itemId}"
                         is PendingAttachment.Note -> vm.noteLabels[a.noteId] ?: "Jogakbo #${a.noteId}"
                         is PendingAttachment.Photo -> stringResource(R.string.chat_photo)
+                        is PendingAttachment.Quote -> stringResource(R.string.share_selected_text)
                     }
                     InputChip(
-                        selected = false, onClick = {}, label = { Text(label, maxLines = 1) },
+                        selected = false, onClick = { if (a is PendingAttachment.Quote) selectedQuote = a.text }, label = { Text(label, maxLines = 1) },
                         trailingIcon = { Icon(Icons.Filled.Close, stringResource(R.string.chat_remove_attachment), Modifier.size(18.dp).clickable { vm.removePending(a) }) },
                     )
                 }
@@ -221,6 +224,14 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
         if (vm.pending.any { it is PendingAttachment.Photo || it is PendingAttachment.Item } && !images) {
             Text(stringResource(R.string.chat_no_vision), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
         }
+    }
+    selectedQuote?.let { quote ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { selectedQuote = null },
+            title = { Text(stringResource(R.string.share_selected_text)) },
+            text = { Text(quote, modifier = Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { selectedQuote = null }) { Text(stringResource(R.string.chat_dismiss)) } },
+        )
     }
     if (renaming) RenameDialog(session?.title.orEmpty(), onDismiss = { renaming = false }) { vm.rename(it); renaming = false }
     if (tasksOpen) TasksSheet(vm) { tasksOpen = false }
@@ -326,7 +337,9 @@ private fun MessageRow(sessionId: Long, m: ChatMessageEntity, names: Map<Long, S
     when (m.role) {
         ChatRole.USER -> Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ChatViewModel.attachmentsOf(m).forEach { a ->
-                if (a.photoFile != null) {
+                if (a.quote != null) {
+                    Bubble(a.quote, mine = true)
+                } else if (a.photoFile != null) {
                     io.github.taehunkim.malbotdari.ui.common.LocalPhoto(File(androidx.compose.ui.platform.LocalContext.current.filesDir, "chat/$sessionId/${a.photoFile}"), Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)))
                 } else if (a.noteId != null) {
                     val context = androidx.compose.ui.platform.LocalContext.current

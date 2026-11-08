@@ -19,7 +19,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        handle(intent)
+        if (savedInstanceState == null) handle(intent)
         setContent { AppTheme { AppScaffold(openChat.collectAsStateWithLifecycle().value) { openChat.value = null } } }
     }
 
@@ -39,6 +39,18 @@ class MainActivity : AppCompatActivity() {
     private fun handle(intent: Intent?) {
         intent ?: return
         intent.getLongExtra(Notifications.EXTRA_SESSION, -1).takeIf { it > 0 }?.let { openChat.value = it; return }
+        if (intent.action in setOf(Intent.ACTION_PROCESS_TEXT, Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) {
+            val c = (application as MalbotdariApp).container
+            lifecycleScope.launch {
+                val id = c.chat.newSession()
+                val draft = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    io.github.taehunkim.malbotdari.sharing.SharedDraft.receive(this@MainActivity, id, intent)
+                }
+                if (draft.rejected) android.widget.Toast.makeText(this@MainActivity, R.string.share_some_failed, android.widget.Toast.LENGTH_LONG).show()
+                openChat.value = id
+            }
+            return
+        }
         if (intent.action == ACTION_NEW_CHAT) {
             // Another app (Nunsori's Search) hands over files to ask about: a new chat with them attached.
             val ids = intent.getLongArrayExtra(EXTRA_ITEM_IDS)?.toList().orEmpty().filter { it > 0 }.distinct().take(MAX_ITEMS)

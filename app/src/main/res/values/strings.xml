@@ -188,4 +188,6 @@
     <string name="unsure_ask">Ask the assistant</string>
     <string name="unsure_drop">Skip the file</string>
     <string name="unsure_keep">Count as a match</string>
+    <string name="share_some_failed">Some shared content could not be imported. Up to two images (20 MB each) and 30,000 characters are supported.</string>
+    <string name="share_selected_text">Selected text</string>
 </resources>

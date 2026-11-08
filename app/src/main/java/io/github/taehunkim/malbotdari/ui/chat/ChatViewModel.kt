@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 /** A file or photo attached to a message, as shown in the UI. */
-data class AttachmentChip(val itemId: Long? = null, val photoFile: String? = null, val noteId: Long? = null, val label: String)
+data class AttachmentChip(val itemId: Long? = null, val photoFile: String? = null, val noteId: Long? = null, val quote: String? = null, val label: String)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewModel() {
@@ -78,9 +78,13 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     fun refreshHost() { viewModelScope.launch { c.models.refresh() } }
 
-    var draft by mutableStateOf("")
+    private val sharedDraft = io.github.taehunkim.malbotdari.sharing.SharedDraft.load(c.context, sessionId)
+    private var draftState by mutableStateOf(sharedDraft?.text.orEmpty())
+    var draft: String
+        get() = draftState
+        set(value) { draftState = value; persistSharedDraft() }
     /** Attachments waiting for the next send. */
-    var pending by mutableStateOf<List<PendingAttachment>>(emptyList())
+    var pending by mutableStateOf<List<PendingAttachment>>(sharedDraft?.images.orEmpty().map { PendingAttachment.Photo(Uri.fromFile(java.io.File(c.context.filesDir, "chat/$sessionId/$it"))) } + listOfNotNull(sharedDraft?.quote?.takeIf { it.isNotBlank() }?.let { PendingAttachment.Quote(it) }))
         private set
     var noteLabels by mutableStateOf<Map<Long, String>>(emptyMap())
         private set
@@ -98,7 +102,7 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     init {
         // Files chosen in Nunsori's Search ("Ask in chat") arrive as pending attachments.
         val noteIds = controller.takeQueuedNotes(sessionId)
-        pending = noteIds.map { PendingAttachment.Note(it) }
+        pending = pending + noteIds.map { PendingAttachment.Note(it) }
         if (noteIds.isNotEmpty()) viewModelScope.launch {
             noteLabels = runCatching { c.notes.info(noteIds).associate { it.noteId to it.title } }.getOrDefault(emptyMap())
         }
@@ -112,14 +116,30 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     fun send() {
         val text = draft.trim()
         if (text.isEmpty() && pending.isEmpty()) return
-        controller.send(sessionId, text, pending)
-        draft = ""; pending = emptyList()
+        val sent = pending.toList()
+        controller.send(sessionId, text, sent) {
+            viewModelScope.launch {
+                if (draft.trim() == text && pending == sent) {
+                    draft = ""; pending = emptyList()
+                    io.github.taehunkim.malbotdari.sharing.SharedDraft.clear(c.context, sessionId)
+                }
+            }
+        }
     }
 
     fun stop() = controller.stop()
     fun dismissError() = controller.dismissError()
     fun addPhoto(uri: Uri) { pending = pending + PendingAttachment.Photo(uri) }
-    fun removePending(a: PendingAttachment) { pending = pending - a }
+    fun removePending(a: PendingAttachment) { pending = pending - a; persistSharedDraft() }
+
+    private fun persistSharedDraft() {
+        if (sharedDraft == null) return
+        val images = pending.filterIsInstance<PendingAttachment.Photo>().mapNotNull { photo ->
+            photo.uri.path?.let { java.io.File(it) }?.takeIf { photo.uri.scheme == "file" && it.name.startsWith("incoming-") }?.name
+        }
+        io.github.taehunkim.malbotdari.sharing.SharedDraft.save(c.context, sessionId,
+            io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft(draft, images, pending.filterIsInstance<PendingAttachment.Quote>().firstOrNull()?.text.orEmpty()))
+    }
 
     fun toggleTool(name: String) = viewModelScope.launch {
         val s = dao.session(sessionId) ?: return@launch
@@ -144,7 +164,7 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
                 val arr = JSONArray(json)
                 (0 until arr.length()).map { i ->
                     val o = arr.getJSONObject(i)
-                    if (o.has("noteId")) AttachmentChip(noteId = o.getLong("noteId"), label = o.optString("title")) else if (o.has("itemId")) AttachmentChip(itemId = o.getLong("itemId"), label = "") else AttachmentChip(photoFile = o.getString("photo"), label = "")
+                    if (o.has("quote")) AttachmentChip(quote = o.getString("quote"), label = "") else if (o.has("noteId")) AttachmentChip(noteId = o.getLong("noteId"), label = o.optString("title")) else if (o.has("itemId")) AttachmentChip(itemId = o.getLong("itemId"), label = "") else AttachmentChip(photoFile = o.getString("photo"), label = "")
                 }
             }.getOrDefault(emptyList())
         }

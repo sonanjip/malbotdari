@@ -44,6 +44,7 @@ sealed interface PendingAttachment {
     data class Item(val itemId: Long) : PendingAttachment
     data class Note(val noteId: Long) : PendingAttachment
     data class Photo(val uri: Uri) : PendingAttachment
+    data class Quote(val text: String) : PendingAttachment
 }
 
 enum class ChatPhase { LOADING, GENERATING, FAILED }
@@ -102,12 +103,13 @@ class ChatController(
     suspend fun deleteSession(id: Long) {
         if (_run.value?.sessionId == id) stop()
         chat.deleteSession(id)
+        io.github.taehunkim.malbotdari.sharing.SharedDraft.clear(context, id)
         File(context.filesDir, "chat/$id").deleteRecursively()
     }
 
-    fun send(sessionId: Long, text: String, attachments: List<PendingAttachment> = emptyList()) {
+    fun send(sessionId: Long, text: String, attachments: List<PendingAttachment> = emptyList(), onStored: () -> Unit = {}) {
         if (busy || (text.isBlank() && attachments.isEmpty())) return
-        job = scope.launch { turnLock.withLock { runTurn(sessionId, text.trim(), attachments) } }
+        job = scope.launch { turnLock.withLock { runTurn(sessionId, text.trim(), attachments, onStored = onStored) } }
     }
 
     fun stop() { job?.cancel() }
@@ -150,7 +152,7 @@ class ChatController(
 
     private suspend fun runTurn(
         sessionId: Long, text: String, pending: List<PendingAttachment>,
-        task: ScheduledTaskEntity? = null, extraContext: String = "",
+        task: ScheduledTaskEntity? = null, extraContext: String = "", onStored: () -> Unit = {},
     ): TurnResult {
         var answer = StringBuilder()
         try {
@@ -170,6 +172,10 @@ class ChatController(
                 val extra = StringBuilder()
                 val images = ArrayList<ByteArray>()
                 for (a in pending) when (a) {
+                    is PendingAttachment.Quote -> {
+                        attachmentsJson.put(JSONObject().put("quote", a.text))
+                        extra.append("[Selected text, quoted as user-provided content]\n").append(a.text).append("\n[End selected text]\n\n")
+                    }
                     is PendingAttachment.Item -> {
                         attachmentsJson.put(JSONObject().put("itemId", a.itemId))
                         extra.append(excerptOf(a.itemId))
@@ -201,6 +207,7 @@ class ChatController(
                         attachments = attachmentsJson.takeIf { it.length() > 0 }?.toString(), taskId = task?.taskId, createdAt = clock(),
                     ),
                 )
+                onStored()
                 if (firstMessage && task == null) chat.rename(sessionId, titleOf(text))
                 chat.touch(sessionId, clock())
 
