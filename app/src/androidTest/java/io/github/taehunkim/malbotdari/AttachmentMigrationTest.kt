@@ -20,6 +20,7 @@ class AttachmentMigrationTest {
             close()
         }
         val db = helper.runMigrationsAndValidate("attachments-migration", 2, true, MIGRATION_1_2)
+        db.execSQL("PRAGMA foreign_keys=ON")
         db.query("SELECT title FROM chat_sessions WHERE sessionId=1").use { it.moveToFirst(); assertEquals("existing", it.getString(0)) }
         db.execSQL("INSERT INTO attachments (attachmentId,sessionId,name,mime,fileName,size,state,sent) VALUES (1,1,'a','text/plain','a',1,'QUEUED',0)")
         db.execSQL("INSERT INTO attachment_chunks (attachmentId,ordinal,text) VALUES (1,0,'content')")

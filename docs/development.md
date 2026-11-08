@@ -30,4 +30,6 @@ Shared draft coverage is in `sharing/SharedDraftTest`: selected text persistence
 
 `ImportBudgetTest` covers the file count and byte budgets. `ChatTest` covers local image tool scoping and the per-question image limit.
 
-The manually prepared Room 2 schema has a provisional identity hash: the next KSP build must regenerate `app/schemas/.../2.json` and the migration test must be run before release. No schema hash was guessed in the absence of a build.
+The Room 2 schema was reconstructed without running KSP; compare it with the generated schema and run the migration test before release.
+
+Attachment tests include migration/cascade and semantic/keyword ranking. They require the normal Android and JVM test runs; no Gradle tasks were run while implementing these changes.
