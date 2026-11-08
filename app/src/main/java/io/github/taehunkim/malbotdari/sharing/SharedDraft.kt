@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import io.github.taehunkim.malbotdari.attachments.BoundedImport
+import io.github.taehunkim.malbotdari.attachments.ImportBudget
 import java.io.File
 import java.util.UUID
 import org.json.JSONArray
@@ -13,8 +14,6 @@ import org.json.JSONObject
 /** A private, durable draft created from an Android share. Originals are copied while the URI grant is valid. */
 object SharedDraft {
     const val MAX_TEXT = 30000
-    private const val MAX_IMAGES = 2
-    private const val MAX_IMAGE_BYTES = 20L * 1024 * 1024
     data class Draft(val text: String, val images: List<String>, val quote: String = "", val rejected: Boolean = false)
 
     fun receive(context: Context, sessionId: Long, intent: Intent): Draft {
@@ -26,17 +25,18 @@ object SharedDraft {
         val uris = streams(intent)
         val dir = File(context.filesDir, "chat/$sessionId").also { it.mkdirs() }
         val images = mutableListOf<String>()
+        val budget = ImportBudget()
         for (uri in uris) {
-            if (images.size >= MAX_IMAGES || (runCatching { context.contentResolver.getType(uri) }.getOrNull() ?: intent.type)?.startsWith("image/") != true) {
+            if (!budget.hasSlot() || (runCatching { context.contentResolver.getType(uri) }.getOrNull() ?: intent.type)?.startsWith("image/") != true) {
                 rejected = true
                 continue
             }
             val file = File(dir, "incoming-${UUID.randomUUID()}")
             val ok = runCatching {
                 require(uri.scheme == "content")
-                context.contentResolver.openInputStream(uri)!!.use { BoundedImport.copy(it, file, MAX_IMAGE_BYTES) }
+                context.contentResolver.openInputStream(uri)!!.use { BoundedImport.copy(it, file, budget.nextLimit()) }
             }.isSuccess
-            if (ok) images += file.name else rejected = true
+            if (ok) { images += file.name; budget.added(file.length()) } else rejected = true
         }
         return Draft(if (intent.action == Intent.ACTION_PROCESS_TEXT) "" else raw.take(MAX_TEXT), images, if (intent.action == Intent.ACTION_PROCESS_TEXT) raw.take(MAX_TEXT) else "", rejected).also { save(context, sessionId, it) }
     }

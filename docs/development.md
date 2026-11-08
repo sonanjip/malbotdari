@@ -27,3 +27,5 @@ Tool-schema compaction tests run against a real JVM `org.json` implementation (t
 The `attachments/BoundedImport` helper is groundwork for local attachment imports. It copies to a new app-private destination with a caller-provided byte budget, removes a partial file on failure, and leaves input-stream ownership to the caller. It is not yet connected to a share receiver or an attachment processing pipeline; callers must enforce file-count and aggregate limits, manage cancellation and cleanup, and validate content separately. Its pure JVM tests can be run independently of Android, but they do not replace Android or migration tests.
 
 Shared draft coverage is in `sharing/SharedDraftTest`: selected text persistence, the text limit, and rejection of file URIs. Image share and activity lifecycle behavior still require device testing.
+
+`ImportBudgetTest` covers the file count and byte budgets. `ChatTest` covers local image tool scoping and the per-question image limit.

@@ -29,4 +29,4 @@ Ask for something later or repeatedly ("every day at 9, summarize yesterday's ph
 
 Use **Ask in chat** in Nunsori or Jogakbo to attach files or notes. The assistant searches within long attachments rather than reading just their beginning. With a vision model it can request up to two image previews per question; for a video this shows a representative frame. You can ask a follow-up about the same attachment.
 
-To ask about selected text, choose Malbotdari from Android's text actions; to share text or images, choose Malbotdari in the Share menu. Selected text appears as a quoted attachment. Review the draft before sending. Up to two images (20 MiB each) and 30,000 characters are accepted. Documents and audio cannot yet be shared into chat.
+To ask about selected text, choose Malbotdari from Android's text actions; to share text or images, choose Malbotdari in the Share menu. Selected text appears as a quoted attachment. Review the draft before sending. Up to ten images (100 MiB each, 200 MiB total) and 30,000 characters are accepted. At most two images can be viewed by the model per question. Documents and audio cannot yet be shared into chat.

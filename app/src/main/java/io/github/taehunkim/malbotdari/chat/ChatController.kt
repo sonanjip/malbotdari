@@ -186,8 +186,9 @@ class ChatController(
                             extra.append("[Attached note: ${info?.title.orEmpty()} (note_id=${a.noteId})] Use search_in_note with this note_id and your question, then read_note for more.\n\n")
                         }
                         is PendingAttachment.Photo -> {
-                        val file = savePhoto(sessionId, a.uri) ?: continue
+                        val file = savePhoto(sessionId, a.uri) ?: throw java.io.IOException("Could not read an attached image")
                         attachmentsJson.put(JSONObject().put("photo", file.name))
+                        extra.append("[Attached image: attachment_id=${file.name}. Use view_image with attachment_id to see it on a later question.]\n")
                         if (!model.supportsImages) extra.append(PHOTO_UNSUPPORTED)
                         else if (images.size < 2) images += file.readBytes()
                         else extra.append("[Only two images can be viewed per question; this photo was not sent.]\n")
@@ -214,7 +215,20 @@ class ChatController(
                 // History = stored user/assistant turns before this one, trimmed to the context budget.
                 val stored = chat.messages(sessionId).dropLast(1).filter { it.role != ChatRole.TOOL }
                     .map { ChatTurn(if (it.role == ChatRole.USER) TurnRole.USER else TurnRole.ASSISTANT, it.text + (it.attachments?.let { a -> "\n[Attachment references: $a]" }.orEmpty())) }
-                val imageTool = ViewImageTool(files, model.supportsImages, (2 - images.size).coerceAtLeast(0))
+                val photoIds = chat.messages(sessionId).mapNotNull { it.attachments }.flatMap { json ->
+                    runCatching {
+                        val a = JSONArray(json)
+                        (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.optString("photo")?.takeIf { it.isNotEmpty() } }
+                    }.getOrDefault(emptyList())
+                }.toSet()
+                val imageTool = ViewImageTool(files, model.supportsImages, (2 - images.size).coerceAtLeast(0), photoIds) { id ->
+                    withContext(Dispatchers.IO) {
+                        val dir = File(context.filesDir, "chat/$sessionId")
+                        val file = File(dir, id)
+                        if (file.parentFile?.canonicalFile != dir.canonicalFile || !file.isFile) null
+                        else Photos.jpeg(context, Uri.fromFile(file), PHOTO_SIDE)
+                    }
+                }
                 val baseTools = if (task != null) scheduledTools(session) else enabledTools(session)
                 val recentAttachments = chat.messages(sessionId).takeLast(8).mapNotNull { it.attachments }.joinToString()
                 val hasReferences = pending.any { it is PendingAttachment.Item || it is PendingAttachment.Note } ||
@@ -396,7 +410,7 @@ class ChatController(
             (if (people.isEmpty()) "" else "People the user named in their photos: ${people.joinToString()}. When the user mentions one of them, pass that name as person to search_index" +
                 (if (withFiles) ", move_files or delete_files (person instead of item_ids moves or deletes every photo of that person)" else "") + ". ") +
             "Answer from the user's own files when the question is about them: use the search_index tool to find files and read_file to read them, " +
-            "if those tools are available. Attachments contain references only. For images call view_image before describing them; for attached documents or notes call search_in_file or search_in_note to find relevant passages. Never claim to have read unseen content. Name the files (and page or time) your answer is based on. " +
+            "if those tools are available. Attachments contain references only. For images call view_image with item_id or attachment_id before describing them; for attached documents or notes call search_in_file or search_in_note to find relevant passages. Never claim to have read unseen content. Name the files (and page or time) your answer is based on. " +
             (if (withNotes) "The user's notes (memos, saved web pages, YouTube videos and recordings, each with a summary) are in Jogakbo: " +
                 "use search_notes to find notes and read_note to read one when the question is about something they wrote down, saved, watched or recorded; name the notes you used. " else "") +
             "If nothing relevant is found, say so instead of guessing. Keep answers concise and reply in the language the user writes in." +

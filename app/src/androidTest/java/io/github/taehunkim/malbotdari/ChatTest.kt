@@ -291,6 +291,16 @@ class ChatTest {
         assertEquals(2, vision.loaded.size)
     }
 
+    @Test fun localImageToolIsScopedToTheChatAndSharesTheTwoImageLimit() {
+        val tool = io.github.taehunkim.malbotdari.chat.ViewImageTool(files, true, 2, setOf("a.jpg", "b.jpg", "c.jpg")) { byteArrayOf(1, 2) }
+        assertTrue(tool.execute(JSONObject().put("attachment_id", "../other.jpg")).contains("No such"))
+        assertTrue(tool.execute(JSONObject().put("attachment_id", "a.jpg")).contains("Image requested"))
+        assertTrue(tool.execute(JSONObject().put("attachment_id", "a.jpg")).contains("already"))
+        assertTrue(tool.execute(JSONObject().put("attachment_id", "b.jpg")).contains("Image requested"))
+        assertTrue(tool.execute(JSONObject().put("attachment_id", "c.jpg")).contains("Only two"))
+        assertEquals(2, tool.loaded.size)
+    }
+
     @Test fun pickerPhotoIsKeptWhenAnIndexedImageIsRequested() = runBlocking {
         val image = addItem("cat.jpg", ItemKind.IMAGE)
         files.thumbnails[image] = byteArrayOf(1, 2, 3)
