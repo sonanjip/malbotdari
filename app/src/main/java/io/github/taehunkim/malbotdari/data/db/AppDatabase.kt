@@ -8,17 +8,18 @@ import androidx.room.RoomDatabase
  * item ids only (no foreign keys), so a file deleted there simply stops resolving.
  */
 @Database(
-    entities = [ChatSessionEntity::class, ChatMessageEntity::class, ScheduledTaskEntity::class, PendingActionEntity::class],
+    entities = [ChatSessionEntity::class, ChatMessageEntity::class, ScheduledTaskEntity::class, PendingActionEntity::class, AttachmentEntity::class, AttachmentChunkEntity::class],
     version = AppDatabase.VERSION,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
     abstract fun taskDao(): ScheduledTaskDao
+    abstract fun attachmentDao(): AttachmentDao
     abstract fun actionDao(): PendingActionDao
 
     companion object {
         /** Bump together with a new migration in Migrations.kt (see docs/development.md). */
-        const val VERSION = 1
+        const val VERSION = 2
     }
 }

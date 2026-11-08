@@ -29,3 +29,5 @@ The `attachments/BoundedImport` helper is groundwork for local attachment import
 Shared draft coverage is in `sharing/SharedDraftTest`: selected text persistence, the text limit, and rejection of file URIs. Image share and activity lifecycle behavior still require device testing.
 
 `ImportBudgetTest` covers the file count and byte budgets. `ChatTest` covers local image tool scoping and the per-question image limit.
+
+The manually prepared Room 2 schema has a provisional identity hash: the next KSP build must regenerate `app/schemas/.../2.json` and the migration test must be run before release. No schema hash was guessed in the absence of a build.
