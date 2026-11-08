@@ -40,9 +40,7 @@
 /app/src/main/assets/*.onnx
 
 # Local Claude Code state
-.claude/settings.local.json
-!docs/images/*.png
-.claude/settings.json
+.claude/
 .codex/
 /app/src/main/assets/licenses.txt
 *.jks
