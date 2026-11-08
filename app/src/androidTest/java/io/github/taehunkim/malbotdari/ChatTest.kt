@@ -144,6 +144,14 @@ class ChatTest {
         assertNull(controller.run.value)
     }
 
+    @Test fun sentShareTextKeepsLeadingAndTrailingWhitespace() = runBlocking {
+        val id = controller.newSession()
+        val text = "  Shared caption\n"
+        sendAndWait(id, text)
+        assertEquals(text, db.chatDao().messages(id).first().text)
+        assertTrue(model.calls.single().user.text.endsWith(text))
+    }
+
     @Test fun earlierTurnsAreReplayedToTheModel() = runBlocking {
         val id = controller.newSession()
         sendAndWait(id, "first question"); sendAndWait(id, "second question")

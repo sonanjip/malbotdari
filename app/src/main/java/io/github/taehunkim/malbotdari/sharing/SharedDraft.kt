@@ -39,15 +39,9 @@ object SharedDraft {
     )
 
     suspend fun receive(context: Context, sessionId: Long, intent: Intent, dao: AttachmentDao? = null, persist: Boolean = true, onImported: (Long) -> Unit = {}): Draft = importLock.withLock {
-        val extra = when (intent.action) {
-            Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
-            else -> intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
-        }?.toString().orEmpty()
-        val clipText = if (intent.action == Intent.ACTION_PROCESS_TEXT) emptyList() else
-            (0 until (intent.clipData?.itemCount ?: 0)).mapNotNull { intent.clipData?.getItemAt(it)?.text?.toString() }
-        val raw = (listOf(extra) + clipText).filter { it.isNotBlank() }.distinct().joinToString("\n")
-        var rejected = raw.length > MAX_TEXT
-        val uris = streams(intent)
+        val raw = sharedText(intent)
+        var rejected = intent.action == Intent.ACTION_PROCESS_TEXT && raw.length > MAX_TEXT
+        val uris = contentUris(intent)
         val dir = File(context.filesDir, "chat/$sessionId").also { it.mkdirs() }
         val images = mutableListOf<String>()
         val budget = ImportBudget()
@@ -78,18 +72,32 @@ object SharedDraft {
             }
             budget.added(file.length())
         }
-        Draft(if (intent.action == Intent.ACTION_PROCESS_TEXT) "" else raw.take(MAX_TEXT), images, if (intent.action == Intent.ACTION_PROCESS_TEXT) raw.take(MAX_TEXT) else "", rejected).also { if (persist) save(context, sessionId, it) }
+        Draft(if (intent.action == Intent.ACTION_PROCESS_TEXT) "" else raw, images, if (intent.action == Intent.ACTION_PROCESS_TEXT) raw.take(MAX_TEXT) else "", rejected).also { if (persist) save(context, sessionId, it) }
+    }
+
+    fun sharedText(intent: Intent): String {
+        val extra = when (intent.action) {
+            Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
+            else -> intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+        }?.toString().orEmpty()
+        val clipText = if (intent.action == Intent.ACTION_PROCESS_TEXT) emptyList() else
+            (0 until (intent.clipData?.itemCount ?: 0)).mapNotNull { intent.clipData?.getItemAt(it)?.text?.toString() }
+        return (listOf(extra) + clipText.filterNot { it == extra }).filter { it.isNotEmpty() }.joinToString("\n")
     }
 
     @Suppress("DEPRECATION")
-    private fun streams(intent: Intent): List<Uri> {
+    fun contentUris(intent: Intent): List<Uri> {
+        if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return emptyList()
         val extra: List<Uri> = when (intent.action) {
             Intent.ACTION_SEND_MULTIPLE -> if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty() else intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty()
             Intent.ACTION_SEND -> listOfNotNull(if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
             else -> emptyList()
         }
         val clip = intent.clipData
-        return (extra + (0 until (clip?.itemCount ?: 0)).mapNotNull { clip?.getItemAt(it)?.uri }).distinct()
+        val fromClip = (0 until (clip?.itemCount ?: 0)).mapNotNull { clip?.getItemAt(it)?.uri }
+        val combined = extra + fromClip.filter { it !in extra }
+        val data = intent.data
+        return if (data != null && data !in combined) combined + data else combined
     }
 
     /** Remove incomplete imports after a process death, without touching registered originals or old drafts. */

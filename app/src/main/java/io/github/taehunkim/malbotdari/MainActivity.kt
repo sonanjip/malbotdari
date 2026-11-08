@@ -41,6 +41,11 @@ class MainActivity : AppCompatActivity() {
     private fun handle(intent: Intent?) {
         intent ?: return
         intent.getLongExtra(Notifications.EXTRA_SESSION, -1).takeIf { it > 0 }?.let { openChat.value = it; return }
+        if (intent.action in setOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE) &&
+            io.github.taehunkim.malbotdari.sharing.SharedDraft.contentUris(intent).isNotEmpty()) {
+            startActivity(Intent(intent).setClass(this, io.github.taehunkim.malbotdari.sharing.SharePreparationActivity::class.java))
+            return
+        }
         if (intent.action in setOf(Intent.ACTION_PROCESS_TEXT, Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) {
             val c = (application as MalbotdariApp).container
             lifecycleScope.launch {
@@ -54,7 +59,8 @@ class MainActivity : AppCompatActivity() {
                         try { shares.receive(appContext, id, intent, c.db.attachmentDao(), onImported = { c.attachments.enqueue(id, it) }) }
                         catch (e: kotlinx.coroutines.CancellationException) { throw e }
                         catch (e: Exception) {
-                            val text = (if (intent.action == Intent.ACTION_PROCESS_TEXT) intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT) else intent.getCharSequenceExtra(Intent.EXTRA_TEXT))?.toString().orEmpty().take(io.github.taehunkim.malbotdari.sharing.SharedDraft.MAX_TEXT)
+                            val incoming = shares.sharedText(intent)
+                            val text = if (intent.action == Intent.ACTION_PROCESS_TEXT) incoming.take(io.github.taehunkim.malbotdari.sharing.SharedDraft.MAX_TEXT) else incoming
                             io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft(
                                 if (intent.action == Intent.ACTION_PROCESS_TEXT) "" else text, emptyList(),
                                 if (intent.action == Intent.ACTION_PROCESS_TEXT) text else "", rejected = true,

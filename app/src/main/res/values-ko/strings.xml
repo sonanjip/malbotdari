@@ -188,7 +188,7 @@
     <string name="unsure_ask">어시스턴트에게 묻기</string>
     <string name="unsure_drop">건너뛰기</string>
     <string name="unsure_keep">맞는 것으로 치기</string>
-    <string name="share_some_failed">일부 공유 내용을 가져오지 못했습니다. 파일 최대 10개(각 100 MiB, 총 200 MiB)와 텍스트 30,000자까지 지원합니다.</string>
+    <string name="share_some_failed">일부 공유 내용을 가져오지 못했습니다. 파일 최대 10개(각 100 MiB, 총 200 MiB)를 지원하며 선택한 텍스트는 30,000자까지 지원합니다.</string>
     <string name="share_selected_text">선택한 텍스트</string>
     <string name="attachment_retry">다시 시도</string>
     <string name="attachment_choose_files">문서 또는 오디오 첨부</string>
@@ -203,4 +203,20 @@
     <string name="attachment_copying">첨부 파일 복사 중…</string>
     <string name="attachment_failed_blocked">전송하려면 실패한 첨부 파일을 다시 시도하거나 제거하세요.</string>
     <string name="attachment_exclude_failed">가져오지 못한 파일 제외</string>
+    <string name="share_prepare_title">공유 파일 확인</string>
+    <string name="share_prepare_explanation">이 채팅으로 복사할 파일을 선택하세요. 선택하지 않은 파일은 제외됩니다.</string>
+    <string name="share_prepare_text">함께 공유한 텍스트는 채팅 초안에 보관됩니다.</string>
+    <string name="share_prepare_count">선택: %1$d · 제외: %2$d</string>
+    <string name="share_size_unknown">크기 알 수 없음</string>
+    <string name="share_copied">복사됨</string>
+    <string name="share_invalid_uri">이 형식의 링크는 읽을 수 없습니다.</string>
+    <string name="share_unsupported">지원하지 않는 파일 형식입니다.</string>
+    <string name="share_file_too_large">표시된 크기가 100 MiB를 초과합니다.</string>
+    <string name="share_too_many">파일은 최대 10개까지 선택할 수 있습니다.</string>
+    <string name="share_total_too_large">선택한 파일이 총 200 MiB를 초과합니다.</string>
+    <string name="share_copy_too_large">실제 크기가 남은 제한을 초과합니다.</string>
+    <string name="share_copy_failed">이 파일을 읽거나 복사하지 못했습니다.</string>
+    <string name="share_prepare_failed">채팅을 준비하지 못했습니다. 다시 시도하세요.</string>
+    <string name="share_continue_without_failed">실패한 파일 없이 계속</string>
+    <string name="share_confirm">선택한 파일 복사</string>
 </resources>

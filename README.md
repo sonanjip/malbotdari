@@ -21,7 +21,7 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 
 | Feature | What it does |
 |---|---|
-| Chat | Per-chat history with pinning, Markdown answers with copy and share, your own instructions, local document, audio and image attachments |
+| Chat | Per-chat history with pinning, Markdown answers with copy and share, your own instructions, local document, audio and image attachments with pre-copy share review |
 | Your files (with Nunsori) | Search and read indexed files, file previews under answers, people by the names you gave in Nunsori, "Ask in chat" from Nunsori's search |
 | Your notes (with Jogakbo) | Search and read notes and their summaries (`search_notes`, `read_note`); a tap on a found note opens it in Jogakbo |
 | Cards you approve | Calendar events and contacts (the system app opens prefilled), moving or trashing files (done by Nunsori) |
@@ -66,3 +66,5 @@ Local files shared or picked in chat can be processed for search: text, PDF, Off
 Local attachments are processed automatically; sending waits for processing or for failed imports to be resolved.
 
 Unsent drafts retain their text and selected file or note references when another share opens a chat.
+
+Incoming file shares can be reviewed and selectively excluded before copying; unsupported items and size limits are shown individually.

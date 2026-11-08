@@ -188,7 +188,7 @@
     <string name="unsure_ask">Ask the assistant</string>
     <string name="unsure_drop">Skip the file</string>
     <string name="unsure_keep">Count as a match</string>
-    <string name="share_some_failed">Some shared content could not be imported. Up to 10 files (100 MiB each, 200 MiB total) and 30,000 characters are supported.</string>
+    <string name="share_some_failed">Some shared content could not be imported. Up to 10 files (100 MiB each, 200 MiB total) are supported; selected text is limited to 30,000 characters.</string>
     <string name="share_selected_text">Selected text</string>
     <string name="attachment_retry">Retry</string>
     <string name="attachment_choose_files">Attach documents or audio</string>
@@ -203,4 +203,20 @@
     <string name="attachment_copying">Copying attachments…</string>
     <string name="attachment_failed_blocked">Retry or remove failed attachments before sending.</string>
     <string name="attachment_exclude_failed">Exclude failed imports</string>
+    <string name="share_prepare_title">Review shared files</string>
+    <string name="share_prepare_explanation">Choose the files to copy into this chat. Unselected files will be excluded.</string>
+    <string name="share_prepare_text">The accompanying text will be kept in the chat draft.</string>
+    <string name="share_prepare_count">Selected: %1$d · Excluded: %2$d</string>
+    <string name="share_size_unknown">Size unknown</string>
+    <string name="share_copied">Copied</string>
+    <string name="share_invalid_uri">Cannot read this type of link.</string>
+    <string name="share_unsupported">Unsupported file type.</string>
+    <string name="share_file_too_large">Reported size exceeds 100 MiB.</string>
+    <string name="share_too_many">Select at most 10 files.</string>
+    <string name="share_total_too_large">Selected files exceed 200 MiB.</string>
+    <string name="share_copy_too_large">Actual size exceeds the remaining limit.</string>
+    <string name="share_copy_failed">Could not read or copy this file.</string>
+    <string name="share_prepare_failed">Could not prepare the chat. Please retry.</string>
+    <string name="share_continue_without_failed">Continue without failed files</string>
+    <string name="share_confirm">Copy selected</string>
 </resources>

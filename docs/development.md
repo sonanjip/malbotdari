@@ -39,3 +39,5 @@ Attachment tests include migration/cascade and semantic/keyword ranking. They re
 Attachment readiness, shared image/caption import, OCR context, image tool argument validation, and character-offset reads have regression tests.
 
 Draft reopening, incoming-share navigation, source-content prompt boundaries and extensionless Office MIME parsing have regression coverage.
+
+`ShareSelectionTest` covers unsupported, reported-size, total-size and count decisions; `SharePreparationTest` checks the pre-confirmation review and mixed-share intake on Android. URI-grant lifetime and real providers also require device verification.

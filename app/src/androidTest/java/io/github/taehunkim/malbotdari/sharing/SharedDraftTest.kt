@@ -26,11 +26,42 @@ class SharedDraftTest {
 
     @Test fun oversizedTextIsClippedAndReported() = runBlocking {
         val id = System.nanoTime()
-        val result = SharedDraft.receive(context, id, Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, "x".repeat(SharedDraft.MAX_TEXT + 1)))
-        assertEquals(SharedDraft.MAX_TEXT, result.text.length)
+        val result = SharedDraft.receive(context, id, Intent(Intent.ACTION_PROCESS_TEXT).putExtra(Intent.EXTRA_PROCESS_TEXT, "x".repeat(SharedDraft.MAX_TEXT + 1)))
+        assertEquals(SharedDraft.MAX_TEXT, result.quote.length)
         assertTrue(result.rejected)
         assertTrue(SharedDraft.load(context, id)!!.rejected)
         SharedDraft.clear(context, id)
+    }
+
+    @Test fun selectedTextDoesNotImportUrisInClipData() = runBlocking {
+        val id = System.nanoTime()
+        val intent = Intent(Intent.ACTION_PROCESS_TEXT).putExtra(Intent.EXTRA_PROCESS_TEXT, "Selected")
+        intent.clipData = android.content.ClipData.newRawUri("unrelated", Uri.parse("file:///not-readable"))
+        try {
+            val draft = SharedDraft.receive(context, id, intent)
+            assertEquals("Selected", draft.quote)
+            assertFalse(draft.rejected)
+            assertTrue(SharedDraft.contentUris(intent).isEmpty())
+        } finally { SharedDraft.clear(context, id) }
+    }
+
+    @Test fun dataUriAndDistinctClipUrisAppearInPreparation() {
+        val first = Uri.parse("content://example/first")
+        val second = Uri.parse("content://example/second")
+        val intent = Intent(Intent.ACTION_SEND).setData(first)
+        intent.clipData = android.content.ClipData.newRawUri("file", second)
+        assertEquals(listOf(second, first), SharedDraft.contentUris(intent))
+    }
+
+    @Test fun accompanyingShareTextIsNotTruncated() = runBlocking {
+        val id = System.nanoTime()
+        try {
+            val text = "x".repeat(SharedDraft.MAX_TEXT + 10)
+            val result = SharedDraft.receive(context, id, Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, text))
+            assertEquals(text, result.text)
+            assertFalse(result.rejected)
+            assertEquals(text, SharedDraft.load(context, id)!!.text)
+        } finally { SharedDraft.clear(context, id) }
     }
 
     @Test fun preservesSharedTextAndClipTextWithoutDuplicatingIt() = runBlocking {

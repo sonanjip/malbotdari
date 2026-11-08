@@ -111,7 +111,7 @@ class ChatController(
 
     fun send(sessionId: Long, text: String, attachments: List<PendingAttachment> = emptyList(), onStored: () -> Unit = {}) {
         if (busy || (text.isBlank() && attachments.isEmpty())) return
-        job = scope.launch { turnLock.withLock { runTurn(sessionId, text.trim(), attachments, onStored = onStored) } }
+        job = scope.launch { turnLock.withLock { runTurn(sessionId, text, attachments, onStored = onStored) } }
     }
 
     fun stop() { job?.cancel() }

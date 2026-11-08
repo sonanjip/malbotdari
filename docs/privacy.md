@@ -33,3 +33,5 @@ Shared documents, audio and images are copied into private per-chat storage. Ext
 Files you pick or share are processed automatically on this device, including OCR for images and transcription for audio when the required OndolSaem models are available. Import errors are retained with the local draft until acknowledged.
 
 Unsent chat text and pending file and note references are saved in private app preferences and removed after an unchanged draft is sent or its chat is deleted.
+
+Incoming shared files are not copied or processed until you confirm the preparation screen. The receiving activity keeps transient URI access while copying; accepted originals and extracted content then live in private app storage.

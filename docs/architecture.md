@@ -46,7 +46,7 @@ Time tasks: `TaskAlarms` (exact alarm per task) → `TaskAlarmReceiver` → uniq
 
 `ViewImageTool` queues JPEG previews within one chat turn. `ChatController` follows the text tool loop with a fresh-key image-bearing generation when images were requested. `PendingAttachment.Note` uses Jogakbo note IDs; metadata comes from `NotesSource.info` and the note chips open Jogakbo. This uses existing SDK methods, without an AIDL change.
 
-Android shares create a new chat. Incoming files are copied into private per-chat storage and tracked in Room, while shared text drafts are kept in private preferences.
+Incoming file shares open a dedicated activity that holds URI grants during review and copying. It queries metadata without opening file streams, validates the selected set, and creates the chat only after confirmation. Copied files are tracked in Room; accompanying text is kept in private draft preferences. Text-only shares continue directly to a chat.
 
 Room version 2 adds private chat attachments and text chunks, linked to their chat with cascading foreign keys. Processing states and errors are persisted per attachment; the version 1 to 2 migration keeps existing chats.
 

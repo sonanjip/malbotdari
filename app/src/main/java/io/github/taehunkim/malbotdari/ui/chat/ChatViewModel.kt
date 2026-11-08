@@ -127,7 +127,7 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
 
     fun send() {
         val snapshot = draftSnapshot()
-        val text = snapshot.text.trim()
+        val text = snapshot.text
         val sent = pending.toList()
         viewModelScope.launch {
             val imports = io.github.taehunkim.malbotdari.sharing.SharedDraft.imports.value[sessionId] ?: 0
@@ -135,7 +135,7 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
             if (!io.github.taehunkim.malbotdari.attachments.AttachmentReadiness.canSend(imports, items.map { it.state }, importFailed) ||
                 (io.github.taehunkim.malbotdari.sharing.SharedDraft.imports.value[sessionId] ?: 0) != 0) return@launch
             val local = items.filter { !it.sent }.map { PendingAttachment.Local(it.attachmentId) }
-            if (text.isEmpty() && sent.isEmpty() && local.isEmpty()) return@launch
+            if (text.isBlank() && sent.isEmpty() && local.isEmpty()) return@launch
             controller.send(sessionId, text, sent + local) {
                 c.appScope.launch(kotlinx.coroutines.Dispatchers.Main.immediate) {
                     if (io.github.taehunkim.malbotdari.sharing.SharedDraft.clearIfUnchanged(c.context, sessionId, snapshot) &&
