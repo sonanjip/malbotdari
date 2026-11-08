@@ -67,6 +67,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.pdfbox.android)
     implementation(libs.commonmark)
     implementation(libs.commonmark.tables)
     // The chat model runs in OndolSaem; the files and their index live in Nunsori, the notes in Jogakbo. All are reached through their SDKs.

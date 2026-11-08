@@ -15,12 +15,14 @@ nunsoriSdk = "sdk-v0.1.0"
 jogakboSdk = "sdk-v0.1.0"
 coroutines = "1.11.0"
 commonmark = "0.32.0"
+pdfbox = "2.0.27.0"
 serialization = "1.12.0"
 junit = "4.13.2"
 androidxTestExt = "1.3.0"
 androidxTestRunner = "1.7.0"
 
 [libraries]
+pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbox" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3" }

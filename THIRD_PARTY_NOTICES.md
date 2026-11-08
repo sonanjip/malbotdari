@@ -13,7 +13,10 @@ It uses the components below. Versions come from [`gradle/libs.versions.toml`](g
 | Nunsori client SDK | sdk-v0.1.0 | Apache-2.0 |
 | Jogakbo client SDK | sdk-v0.1.0 | Apache-2.0 |
 | commonmark-java (+ GFM tables) | 0.32.0 | BSD-2-Clause |
+| PDFBox-Android | 2.0.27.0 | Apache-2.0 |
 
 ## Models
 
 No model is stored in this repository or bundled in the app. The chat model is downloaded and run by the companion app OndolSaem, whose THIRD_PARTY_NOTICES.md lists the models and runtimes with their licenses.
+
+Office parsing, text decoding and audio decoding are adapted from the Apache-2.0 licensed Nunsori project.

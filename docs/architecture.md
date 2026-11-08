@@ -46,6 +46,8 @@ Time tasks: `TaskAlarms` (exact alarm per task) → `TaskAlarmReceiver` → uniq
 
 `ViewImageTool` queues JPEG previews within one chat turn. `ChatController` follows the text tool loop with a fresh-key image-bearing generation when images were requested. `PendingAttachment.Note` uses Jogakbo note IDs; metadata comes from `NotesSource.info` and the note chips open Jogakbo. This uses existing SDK methods, without an AIDL change.
 
-Android text and image shares create a new chat. The receiving activity copies image streams to private per-chat files under a size limit, and stores the incoming draft in private preferences so it can be reopened. Sending uses the existing photo and chat paths. Shared document and audio processing is not implemented.
+Android shares create a new chat. Incoming files are copied into private per-chat storage and tracked in Room, while shared text drafts are kept in private preferences.
 
 Room version 2 adds private chat attachments and text chunks, linked to their chat with cascading foreign keys. Processing states and errors are persisted per attachment; the version 1 to 2 migration keeps existing chats.
+
+Shared or picked documents, images, and audio are copied under the chat's private directory and tracked in Room. A serialized processor extracts text or speech, saves bounded chunks and optional OndolSaem embeddings, and resumes interrupted work on startup. Local tools are scoped to the chat ID and use keyword search when embeddings are unavailable. PDFBox reads PDF text; OCR is requested for scanned pages and images, while audio is decoded to 16 kHz PCM for OndolSaem transcription.
