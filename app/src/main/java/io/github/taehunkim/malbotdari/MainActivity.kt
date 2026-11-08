@@ -11,6 +11,8 @@ import io.github.taehunkim.malbotdari.ui.AppScaffold
 import io.github.taehunkim.malbotdari.ui.theme.AppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
 
 class MainActivity : AppCompatActivity() {
     /** The chat to open (from a notification or another app's "Ask in chat"); consumed once the UI navigated there. */
@@ -43,9 +45,11 @@ class MainActivity : AppCompatActivity() {
             val c = (application as MalbotdariApp).container
             lifecycleScope.launch {
                 val id = c.chat.newSession()
-                val draft = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    io.github.taehunkim.malbotdari.sharing.SharedDraft.receive(this@MainActivity, id, intent)
-                }
+                // The application-owned copy continues if the receiving activity is recreated or closed.
+                val appContext = applicationContext
+                val draft = c.appScope.async(Dispatchers.IO) {
+                    io.github.taehunkim.malbotdari.sharing.SharedDraft.receive(appContext, id, intent, c.db.attachmentDao())
+                }.await()
                 if (draft.rejected) android.widget.Toast.makeText(this@MainActivity, R.string.share_some_failed, android.widget.Toast.LENGTH_LONG).show()
                 openChat.value = id
             }

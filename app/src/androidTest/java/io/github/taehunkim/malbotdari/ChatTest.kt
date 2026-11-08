@@ -107,7 +107,7 @@ class ChatTest {
             matchMode = { matchModeValue }, unsureAction = { unsureValue },
             decide = { p, h -> decided += p; decideFn?.invoke(p, h) },
         )
-        controller = ChatController(ctx, db.chatDao(), files, residency, settings, scope, clock = { now }, taskManager = tasks, actions = actionManager, notes = notes)
+        controller = ChatController(ctx, db.chatDao(), files, residency, settings, scope, clock = { now }, taskManager = tasks, actions = actionManager, notes = notes, localAttachments = db.attachmentDao())
     }
 
     @After fun tearDown() = runBlocking {
@@ -377,6 +377,17 @@ class ChatTest {
         val chat = controller.newSession()
         sendAndWait(chat, "photos of Mina")
         assertTrue("names are part of the conversation key", model.calls.single().key.endsWith(listOf("Mina").hashCode().toString()))
+    }
+
+    @Test fun localAttachmentIsSentAsAReferenceAndMarkedSent() = runBlocking {
+        val session = controller.newSession()
+        val dao = db.attachmentDao()
+        val id = dao.insert(io.github.taehunkim.malbotdari.data.db.AttachmentEntity(sessionId = session, name = "report.txt", mime = "text/plain", fileName = "original", size = 10, state = "READY"))
+        sendAndWait(session, "summarize", listOf(PendingAttachment.Local(id)))
+        assertTrue(dao.get(id, session)!!.sent)
+        assertTrue(db.chatDao().messages(session).first().attachments!!.contains("attachmentId"))
+        assertTrue(model.calls.last().user.text.contains("attachment_id=$id"))
+        assertTrue(model.calls.last().tools.contains("search_in_attachment"))
     }
 
     // ---- scheduled tasks

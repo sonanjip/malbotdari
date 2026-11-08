@@ -24,4 +24,6 @@
 
 Image previews requested by `view_image` and referenced attachments from Jogakbo are implemented. Video viewing remains a representative-frame preview, and document previews do not select arbitrary pages. Attachment chats compact tool documentation to fit small context windows.
 
-- Extend Android sharing and chat attachments to local documents and audio, including durable processing states, OCR/ASR, and attachment search/read tools. The current share receiver accepts text and images only.
+
+
+- Verify the new local attachment processing and migration on device, including large files, model unavailability, and interruption/retry. Confirm Room schema 2 against KSP output before release.

@@ -188,6 +188,16 @@
     <string name="unsure_ask">Ask the assistant</string>
     <string name="unsure_drop">Skip the file</string>
     <string name="unsure_keep">Count as a match</string>
-    <string name="share_some_failed">Some shared content could not be imported. Up to 10 images (100 MiB each, 200 MiB total) and 30,000 characters are supported.</string>
+    <string name="share_some_failed">Some shared content could not be imported. Up to 10 files (100 MiB each, 200 MiB total) and 30,000 characters are supported.</string>
     <string name="share_selected_text">Selected text</string>
+    <string name="attachment_retry">Retry</string>
+    <string name="attachment_choose_files">Attach documents or audio</string>
+    <string name="attachment_queued">Waiting</string>
+    <string name="attachment_processing">Processing</string>
+    <string name="attachment_ready">Ready</string>
+    <string name="attachment_failed">Failed</string>
+    <string name="attachment_awaiting">Awaiting your choice</string>
+    <string name="attachment_process">Process</string>
+    <string name="attachment_reprocess">Reprocess</string>
+    <string name="process_text_label">Ask Malbotdari</string>
 </resources>

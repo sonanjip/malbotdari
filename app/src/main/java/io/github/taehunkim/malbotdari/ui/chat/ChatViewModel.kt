@@ -22,10 +22,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import org.json.JSONArray
 
 /** A file or photo attached to a message, as shown in the UI. */
-data class AttachmentChip(val itemId: Long? = null, val photoFile: String? = null, val noteId: Long? = null, val quote: String? = null, val label: String)
+data class AttachmentChip(val itemId: Long? = null, val photoFile: String? = null, val noteId: Long? = null, val quote: String? = null, val localId: Long? = null, val label: String)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewModel() {
@@ -67,6 +68,10 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     var nunsoriUnavailable by mutableStateOf(false)
     /** Whether Nunsori (the files) can be used, for the hint above the input. */
     val files = c.files.state
+    val localItems = c.db.attachmentDao().observeSession(sessionId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val localPending = localItems.map { items -> items.filter { !it.sent } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun dismissAction(id: Long) { viewModelScope.launch { c.actions.dismiss(id) } }
     fun pauseTask(id: Long, paused: Boolean) { viewModelScope.launch { c.taskManager.setPaused(id, paused) } }
 
@@ -115,9 +120,10 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
 
     fun send() {
         val text = draft.trim()
-        if (text.isEmpty() && pending.isEmpty()) return
+        val local = localPending.value.map { PendingAttachment.Local(it.attachmentId) }
+        if (text.isEmpty() && pending.isEmpty() && local.isEmpty()) return
         val sent = pending.toList()
-        controller.send(sessionId, text, sent) {
+        controller.send(sessionId, text, sent + local) {
             viewModelScope.launch {
                 if (draft.trim() == text && pending == sent) {
                     draft = ""; pending = emptyList()
@@ -130,6 +136,29 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     fun stop() = controller.stop()
     fun dismissError() = controller.dismissError()
     fun addPhoto(uri: Uri) { pending = pending + PendingAttachment.Photo(uri) }
+    var importFailed by mutableStateOf(false)
+        private set
+    fun dismissImportError() { importFailed = false }
+    fun addFiles(uris: List<Uri>) { viewModelScope.launch {
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).setType("*/*")
+            .putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(uris))
+        val result = c.appScope.async(kotlinx.coroutines.Dispatchers.IO) {
+            val resolver = c.context.contentResolver
+            val persisted = uris.filter { uri -> runCatching { resolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }.isSuccess }
+            try { io.github.taehunkim.malbotdari.sharing.SharedDraft.receive(c.context, sessionId, intent, c.db.attachmentDao(), persist = false) }
+            finally { persisted.forEach { uri -> runCatching { resolver.releasePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } } }
+        }.await()
+        pending = pending + result.images.map { PendingAttachment.Photo(Uri.fromFile(java.io.File(c.context.filesDir, "chat/$sessionId/$it"))) }
+        persistSharedDraft()
+        importFailed = result.rejected
+    } }
+    fun retryLocal(id: Long) { viewModelScope.launch { c.db.attachmentDao().setState(id, "QUEUED"); c.attachments.enqueue(sessionId, id) } }
+    fun removeLocal(id: Long) { viewModelScope.launch {
+        val dao = c.db.attachmentDao()
+        val item = dao.get(id, sessionId) ?: return@launch
+        dao.delete(id, sessionId)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { java.io.File(c.context.filesDir, "chat/$sessionId/${item.fileName}").delete() }
+    } }
     fun removePending(a: PendingAttachment) { pending = pending - a; persistSharedDraft() }
 
     private fun persistSharedDraft() {
@@ -164,7 +193,7 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
                 val arr = JSONArray(json)
                 (0 until arr.length()).map { i ->
                     val o = arr.getJSONObject(i)
-                    if (o.has("quote")) AttachmentChip(quote = o.getString("quote"), label = "") else if (o.has("noteId")) AttachmentChip(noteId = o.getLong("noteId"), label = o.optString("title")) else if (o.has("itemId")) AttachmentChip(itemId = o.getLong("itemId"), label = "") else AttachmentChip(photoFile = o.getString("photo"), label = "")
+                    if (o.has("attachmentId")) AttachmentChip(localId = o.getLong("attachmentId"), label = o.optString("name")) else if (o.has("quote")) AttachmentChip(quote = o.getString("quote"), label = "") else if (o.has("noteId")) AttachmentChip(noteId = o.getLong("noteId"), label = o.optString("title")) else if (o.has("itemId")) AttachmentChip(itemId = o.getLong("itemId"), label = "") else AttachmentChip(photoFile = o.getString("photo"), label = "")
                 }
             }.getOrDefault(emptyList())
         }

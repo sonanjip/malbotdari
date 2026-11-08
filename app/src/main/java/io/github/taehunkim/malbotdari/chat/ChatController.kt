@@ -45,6 +45,7 @@ sealed interface PendingAttachment {
     data class Note(val noteId: Long) : PendingAttachment
     data class Photo(val uri: Uri) : PendingAttachment
     data class Quote(val text: String) : PendingAttachment
+    data class Local(val attachmentId: Long) : PendingAttachment
 }
 
 enum class ChatPhase { LOADING, GENERATING, FAILED }
@@ -74,6 +75,7 @@ class ChatController(
     private val actions: ActionManager? = null,
     /** Jogakbo's notes (search, read); offered when it is reachable. */
     private val notes: io.github.taehunkim.malbotdari.notes.NotesSource? = null,
+    private val localAttachments: io.github.taehunkim.malbotdari.data.db.AttachmentDao? = null,
 ) {
     private val _run = MutableStateFlow<ChatRun?>(null)
     val run: StateFlow<ChatRun?> = _run.asStateFlow()
@@ -172,6 +174,12 @@ class ChatController(
                 val extra = StringBuilder()
                 val images = ArrayList<ByteArray>()
                 for (a in pending) when (a) {
+                    is PendingAttachment.Local -> {
+                        val item = localAttachments?.get(a.attachmentId, sessionId) ?: throw java.io.IOException("An attachment is no longer available")
+                        attachmentsJson.put(JSONObject().put("attachmentId", item.attachmentId).put("name", item.name))
+                        extra.append("[Attached local file: ${item.name} (attachment_id=${item.attachmentId}, state=${item.state})] " +
+                            if (item.mime.startsWith("image/")) "Use view_image with attachment_id to see it; search_in_attachment can search extracted text.\n" else "Use search_in_attachment and read_attachment.\n")
+                    }
                     is PendingAttachment.Quote -> {
                         attachmentsJson.put(JSONObject().put("quote", a.text))
                         extra.append("[Selected text, quoted as user-provided content]\n").append(a.text).append("\n[End selected text]\n\n")
@@ -202,11 +210,12 @@ class ChatController(
                 val modelText = "[Current time: ${nowStamp()}]\n" + if (extra.isEmpty()) asked else "$extra\n$asked"
 
                 val firstMessage = chat.messageCount(sessionId) == 0
-                chat.insertMessage(
+                chat.insertUserMessage(
                     ChatMessageEntity(
                         sessionId = sessionId, role = ChatRole.USER, text = text,
                         attachments = attachmentsJson.takeIf { it.length() > 0 }?.toString(), taskId = task?.taskId, createdAt = clock(),
                     ),
+                    pending.filterIsInstance<PendingAttachment.Local>().map { it.attachmentId },
                 )
                 onStored()
                 if (firstMessage && task == null) chat.rename(sessionId, titleOf(text))
@@ -221,19 +230,25 @@ class ChatController(
                         (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.optString("photo")?.takeIf { it.isNotEmpty() } }
                     }.getOrDefault(emptyList())
                 }.toSet()
-                val imageTool = ViewImageTool(files, model.supportsImages, (2 - images.size).coerceAtLeast(0), photoIds) { id ->
+                val localSent = localAttachments?.ofSession(sessionId).orEmpty().filter { it.sent }
+                val localImages = localSent.filter { it.mime.startsWith("image/") }.associateBy { it.attachmentId.toString() }
+                val imageTool = ViewImageTool(files, model.supportsImages, (2 - images.size).coerceAtLeast(0), photoIds + localImages.keys) { id ->
                     withContext(Dispatchers.IO) {
                         val dir = File(context.filesDir, "chat/$sessionId")
-                        val file = File(dir, id)
+                        val file = File(dir, localImages[id]?.fileName ?: id)
                         if (file.parentFile?.canonicalFile != dir.canonicalFile || !file.isFile) null
                         else Photos.jpeg(context, Uri.fromFile(file), PHOTO_SIDE)
                     }
                 }
                 val baseTools = if (task != null) scheduledTools(session) else enabledTools(session)
                 val recentAttachments = chat.messages(sessionId).takeLast(8).mapNotNull { it.attachments }.joinToString()
-                val hasReferences = pending.any { it is PendingAttachment.Item || it is PendingAttachment.Note } ||
-                    recentAttachments.contains("itemId") || recentAttachments.contains("noteId")
-                val offered = baseTools + if (ChatToolNames.READ in session.enabledTools.split(',')) listOf(imageTool) else emptyList()
+                val hasReferences = pending.any { it is PendingAttachment.Item || it is PendingAttachment.Note || it is PendingAttachment.Local } ||
+                    recentAttachments.contains("itemId") || recentAttachments.contains("noteId") || recentAttachments.contains("attachmentId")
+                val localTools = localAttachments?.takeIf { localSent.isNotEmpty() }?.let { dao -> listOf(
+                    io.github.taehunkim.malbotdari.attachments.AttachmentTool(dao, residency.client, sessionId, true),
+                    io.github.taehunkim.malbotdari.attachments.AttachmentTool(dao, residency.client, sessionId, false),
+                ) }.orEmpty()
+                val offered = baseTools + localTools + if (localImages.isNotEmpty() || ChatToolNames.READ in session.enabledTools.split(',')) listOf(imageTool) else emptyList()
                 // Keep enabled actions available, but omit verbose argument documentation to leave room for passages.
                 val tools = if (hasReferences) offered.map { CompactChatTool(it) } else offered
                 // named people (Nunsori's People screen) go into the system prompt when the model can search by person
@@ -410,7 +425,7 @@ class ChatController(
             (if (people.isEmpty()) "" else "People the user named in their photos: ${people.joinToString()}. When the user mentions one of them, pass that name as person to search_index" +
                 (if (withFiles) ", move_files or delete_files (person instead of item_ids moves or deletes every photo of that person)" else "") + ". ") +
             "Answer from the user's own files when the question is about them: use the search_index tool to find files and read_file to read them, " +
-            "if those tools are available. Attachments contain references only. For images call view_image with item_id or attachment_id before describing them; for attached documents or notes call search_in_file or search_in_note to find relevant passages. Never claim to have read unseen content. Name the files (and page or time) your answer is based on. " +
+            "if those tools are available. Attachments contain references only. For local files use search_in_attachment and read_attachment with attachment_id. For images call view_image with item_id or attachment_id before describing them; for attached documents or notes call search_in_file or search_in_note to find relevant passages. Never claim to have read unseen content. Name the files (and page or time) your answer is based on. " +
             (if (withNotes) "The user's notes (memos, saved web pages, YouTube videos and recordings, each with a summary) are in Jogakbo: " +
                 "use search_notes to find notes and read_note to read one when the question is about something they wrote down, saved, watched or recorded; name the notes you used. " else "") +
             "If nothing relevant is found, say so instead of guessing. Keep answers concise and reply in the language the user writes in." +

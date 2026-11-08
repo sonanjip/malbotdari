@@ -3,6 +3,7 @@ package io.github.taehunkim.malbotdari.data.db
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -42,6 +43,16 @@ interface ChatDao {
 
     @Insert
     suspend fun insertMessage(message: ChatMessageEntity): Long
+
+    @Query("UPDATE attachments SET sent = 1 WHERE sessionId = :sessionId AND attachmentId IN (:ids)")
+    suspend fun markAttachmentsSent(sessionId: Long, ids: List<Long>)
+
+    @Transaction
+    suspend fun insertUserMessage(message: ChatMessageEntity, attachmentIds: List<Long>): Long {
+        val id = insertMessage(message)
+        if (attachmentIds.isNotEmpty()) markAttachmentsSent(message.sessionId, attachmentIds)
+        return id
+    }
 
     @Query("SELECT COUNT(*) FROM chat_messages WHERE sessionId = :id")
     suspend fun messageCount(id: Long): Int

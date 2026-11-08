@@ -19,7 +19,7 @@ data class AttachmentEntity(
     val mime: String,
     val fileName: String,
     val size: Long,
-    val state: String = "QUEUED",
+    val state: String = "AWAITING",
     val error: String? = null,
     val sent: Boolean = false,
 )

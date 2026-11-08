@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -90,6 +91,8 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
     val messages by vm.messages.collectAsStateWithLifecycle()
     val run by vm.run.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val localPending by vm.localPending.collectAsStateWithLifecycle()
+    val localItems by vm.localItems.collectAsStateWithLifecycle()
     val names by vm.names.collectAsStateWithLifecycle()
     val modelReady by vm.modelReady.collectAsStateWithLifecycle()
     val images by vm.supportsImages.collectAsStateWithLifecycle()
@@ -100,7 +103,8 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
     var tasksOpen by remember { mutableStateOf(false) }
     val tasks by vm.tasks.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(vm::addPhoto) }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> if (uris.isNotEmpty()) vm.addFiles(uris) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { vm.addFiles(listOf(it)) } }
 
     LaunchedEffect(messages.size, run?.partial?.length) {
         val last = messages.size + (if (run != null) 1 else 0) - 1
@@ -172,6 +176,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                         is PendingAttachment.Note -> vm.noteLabels[a.noteId] ?: "Jogakbo #${a.noteId}"
                         is PendingAttachment.Photo -> stringResource(R.string.chat_photo)
                         is PendingAttachment.Quote -> stringResource(R.string.share_selected_text)
+                        is PendingAttachment.Local -> "#${a.attachmentId}"
                     }
                     InputChip(
                         selected = false, onClick = { if (a is PendingAttachment.Quote) selectedQuote = a.text }, label = { Text(label, maxLines = 1) },
@@ -179,6 +184,25 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                     )
                 }
             }
+        }
+        if (vm.importFailed) WarningCard(stringResource(R.string.share_some_failed), stringResource(R.string.chat_dismiss), vm::dismissImportError)
+        Column(Modifier.heightIn(max = 160.dp).verticalScroll(rememberScrollState())) {
+        localItems.forEach { item ->
+            val status = stringResource(when (item.state) {
+                "AWAITING" -> R.string.attachment_awaiting
+                "QUEUED" -> R.string.attachment_queued
+                "PROCESSING" -> R.string.attachment_processing
+                "READY" -> R.string.attachment_ready
+                else -> R.string.attachment_failed
+            })
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${item.name} · $status" + (item.error?.let { ": $it" } ?: ""), Modifier.weight(1f), maxLines = 2)
+                if (item.state == "FAILED" || item.state == "AWAITING" || item.state == "READY") androidx.compose.material3.TextButton(onClick = { vm.retryLocal(item.attachmentId) }) {
+                    Text(stringResource(when (item.state) { "AWAITING" -> R.string.attachment_process; "READY" -> R.string.attachment_reprocess; else -> R.string.attachment_retry }))
+                }
+                IconButton(onClick = { vm.removeLocal(item.attachmentId) }) { Icon(Icons.Filled.Close, stringResource(R.string.chat_remove_attachment)) }
+            }
+        }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             // Which tools the model may use in this session: a checklist that opens upwards from the composer.
@@ -209,6 +233,9 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
             IconButton(onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
                 Icon(Icons.Filled.AttachFile, stringResource(R.string.chat_attach_photo))
             }
+            IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
+                Icon(Icons.Filled.AttachFile, stringResource(R.string.attachment_choose_files))
+            }
             OutlinedTextField(
                 vm.draft, { vm.draft = it }, Modifier.weight(1f), maxLines = 4,
                 placeholder = { Text(stringResource(R.string.chat_input_hint)) },
@@ -216,12 +243,12 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
             if (busy) {
                 IconButton(onClick = vm::stop) { Icon(Icons.Filled.Stop, stringResource(R.string.chat_stop)) }
             } else {
-                IconButton(onClick = vm::send, enabled = modelReady && (vm.draft.isNotBlank() || vm.pending.isNotEmpty())) {
+                IconButton(onClick = vm::send, enabled = modelReady && (vm.draft.isNotBlank() || vm.pending.isNotEmpty() || localPending.isNotEmpty())) {
                     Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.chat_send))
                 }
             }
         }
-        if (vm.pending.any { it is PendingAttachment.Photo || it is PendingAttachment.Item } && !images) {
+        if ((vm.pending.any { it is PendingAttachment.Photo || it is PendingAttachment.Item } || localPending.any { it.mime.startsWith("image/") }) && !images) {
             Text(stringResource(R.string.chat_no_vision), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
@@ -341,6 +368,8 @@ private fun MessageRow(sessionId: Long, m: ChatMessageEntity, names: Map<Long, S
                     Bubble(a.quote, mine = true)
                 } else if (a.photoFile != null) {
                     io.github.taehunkim.malbotdari.ui.common.LocalPhoto(File(androidx.compose.ui.platform.LocalContext.current.filesDir, "chat/$sessionId/${a.photoFile}"), Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)))
+                } else if (a.localId != null) {
+                    AssistChip(onClick = {}, label = { Text(a.label, maxLines = 1) })
                 } else if (a.noteId != null) {
                     val context = androidx.compose.ui.platform.LocalContext.current
                     AssistChip(onClick = { runCatching { context.startActivity(io.github.taehunkim.jogakbo.sdk.Jogakbo.openNoteIntent(a.noteId)) } },

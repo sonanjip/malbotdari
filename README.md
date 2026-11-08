@@ -21,7 +21,7 @@ An on-device chat assistant for Android: no account, no internet, nothing leaves
 
 | Feature | What it does |
 |---|---|
-| Chat | Per-chat history with pinning, Markdown answers with copy and share, your own instructions, attached photos for vision models |
+| Chat | Per-chat history with pinning, Markdown answers with copy and share, your own instructions, local document, audio and image attachments |
 | Your files (with Nunsori) | Search and read indexed files, file previews under answers, people by the names you gave in Nunsori, "Ask in chat" from Nunsori's search |
 | Your notes (with Jogakbo) | Search and read notes and their summaries (`search_notes`, `read_note`); a tap on a found note opens it in Jogakbo |
 | Cards you approve | Calendar events and contacts (the system app opens prefilled), moving or trashing files (done by Nunsori) |
@@ -59,4 +59,6 @@ Apache License 2.0, see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PA
 
 Files and notes can be attached from Nunsori and Jogakbo. The model searches inside each attachment for relevant passages, and requests image previews with `view_image` (vision model required; two images per question).
 
-Android selected-text actions open a quoted attachment; sharing can open an editable draft with text or up to ten images. Document and audio shares are not yet supported.
+Android selected-text actions open a quoted attachment; sharing can open an editable draft with text or up to ten images.
+
+Local files shared or picked in chat can be processed for search: text, PDF, Office/OpenDocument, images (OCR), and audio (transcription). Processing uses OndolSaem models and stays on device; a failed attachment can be retried.

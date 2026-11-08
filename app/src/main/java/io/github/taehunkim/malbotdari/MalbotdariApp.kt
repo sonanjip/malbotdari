@@ -44,8 +44,9 @@ class AppContainer(val context: Context) {
             decide = { premise, hypotheses -> models.entail(premise, hypotheses) },
         )
     }
+    val attachments by lazy { io.github.taehunkim.malbotdari.attachments.AttachmentProcessor(context, db.attachmentDao(), models.client, appScope) }
     val actions: ActionManager by lazy { ActionManager(db.actionDao(), files) }
-    val chat: ChatController by lazy { ChatController(context, db.chatDao(), files, models, settings, appScope, taskManager = taskManager, actions = actions, notes = notes) }
+    val chat: ChatController by lazy { ChatController(context, db.chatDao(), files, models, settings, appScope, taskManager = taskManager, actions = actions, notes = notes, localAttachments = db.attachmentDao()) }
 }
 
 class MalbotdariApp : Application() {
@@ -57,6 +58,8 @@ class MalbotdariApp : Application() {
         container = AppContainer(this)
         Notifications.ensureChannels(this)
         container.appScope.launch { runCatching { container.taskManager.rearmAll() } }
+        container.appScope.launch { container.attachments.resume() }
+        container.appScope.launch { runCatching { io.github.taehunkim.malbotdari.sharing.SharedDraft.cleanOrphans(this@MalbotdariApp, container.db.attachmentDao()) } }
         container.appScope.launch {
             container.models.refresh()
             container.files.refresh()

@@ -27,3 +27,5 @@ Calendar and contacts need no permission: the system app opens with the fields f
 Images requested through `view_image` are read from Nunsori previews into memory and sent only to OndolSaem on this phone. File and note attachment references are stored with the chat; retrieved previews are not saved as separate chat photos.
 
 Text shared to Malbotdari is stored in a private draft until sent or the chat is deleted. Shared images are copied into private per-chat storage; these files are removed when the chat is deleted. The app does not require broad storage access for these shares.
+
+Shared documents, audio and images are copied into private per-chat storage. Extracted text and embeddings are stored in the local chat database; OCR, transcription and embeddings are requested from the on-device OndolSaem host. Removing an attachment deletes its database records and private original; deleting its chat removes the chat directory.

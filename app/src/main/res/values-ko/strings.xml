@@ -188,6 +188,16 @@
     <string name="unsure_ask">어시스턴트에게 묻기</string>
     <string name="unsure_drop">건너뛰기</string>
     <string name="unsure_keep">맞는 것으로 치기</string>
-    <string name="share_some_failed">일부 공유 내용을 가져오지 못했습니다. 이미지 최대 10개(각 100 MiB, 총 200 MiB)와 텍스트 30,000자까지 지원합니다.</string>
+    <string name="share_some_failed">일부 공유 내용을 가져오지 못했습니다. 파일 최대 10개(각 100 MiB, 총 200 MiB)와 텍스트 30,000자까지 지원합니다.</string>
     <string name="share_selected_text">선택한 텍스트</string>
+    <string name="attachment_retry">다시 시도</string>
+    <string name="attachment_choose_files">문서 또는 오디오 첨부</string>
+    <string name="attachment_queued">대기 중</string>
+    <string name="attachment_processing">처리 중</string>
+    <string name="attachment_ready">준비됨</string>
+    <string name="attachment_failed">실패</string>
+    <string name="attachment_awaiting">처리 여부 선택</string>
+    <string name="attachment_process">처리</string>
+    <string name="attachment_reprocess">다시 처리</string>
+    <string name="process_text_label">말벗다리에 물어보기</string>
 </resources>
