@@ -100,4 +100,6 @@ Android's selected-text action starts a new chat with a quoted attachment; the S
 
 Local attachments show a processing status in chat and failed processing can be retried. The assistant may call `search_in_attachment` and `read_attachment` for extracted text. Imported images may be requested by attachment ID through `view_image`; an image or scanned page needs an OCR model for text extraction, and audio requires OndolSaem's transcription model. Embeddings are optional; keyword search is used when unavailable.
 
-Imported files wait for your choice; tap **Process** to extract their contents on the device.
+Imported files are processed automatically on the device. Sending waits while files are copied, extracted, transcribed, or indexed; retry a failed attachment or remove it to continue. If copying fails, select the file again if desired, then acknowledge exclusion of the failed import.
+
+`search_in_attachment(attachment_id, query, limit)` returns up to five matches and their character offsets. `read_attachment(attachment_id, offset, max_chars)` reads a bounded slice. `view_image` requires exactly one of `item_id` and `attachment_id`. For a text-only model, recognized text from an attached image accompanies the question.

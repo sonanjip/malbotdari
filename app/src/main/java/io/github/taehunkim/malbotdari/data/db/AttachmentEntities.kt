@@ -41,7 +41,7 @@ interface AttachmentDao {
     @Query("SELECT * FROM attachments WHERE sessionId=:sessionId ORDER BY attachmentId") fun observeSession(sessionId: Long): Flow<List<AttachmentEntity>>
     @Query("SELECT * FROM attachments WHERE sessionId=:sessionId ORDER BY attachmentId") suspend fun ofSession(sessionId: Long): List<AttachmentEntity>
     @Query("SELECT * FROM attachments WHERE attachmentId=:id AND sessionId=:sessionId") suspend fun get(id: Long, sessionId: Long): AttachmentEntity?
-    @Query("SELECT * FROM attachments WHERE state IN ('QUEUED','PROCESSING')") suspend fun unfinished(): List<AttachmentEntity>
+    @Query("SELECT * FROM attachments WHERE state IN ('AWAITING','QUEUED','PROCESSING')") suspend fun unfinished(): List<AttachmentEntity>
     @Query("UPDATE attachments SET state=:state, error=:error WHERE attachmentId=:id") suspend fun setState(id: Long, state: String, error: String? = null)
     @Query("UPDATE attachments SET sent=1 WHERE attachmentId=:id AND sessionId=:sessionId") suspend fun markSent(id: Long, sessionId: Long)
     @Query("DELETE FROM attachments WHERE attachmentId=:id AND sessionId=:sessionId") suspend fun delete(id: Long, sessionId: Long)

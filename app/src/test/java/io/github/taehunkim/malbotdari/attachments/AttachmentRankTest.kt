@@ -9,6 +9,11 @@ import org.junit.Test
 class AttachmentRankTest {
     private fun vector(vararg v: Float) = ByteBuffer.allocate(v.size * 4).order(ByteOrder.LITTLE_ENDIAN).also { it.asFloatBuffer().put(v) }.array()
 
+    @Test fun offsetsPointIntoTheConcatenatedAttachment() {
+        val chunks = listOf(AttachmentChunkEntity(attachmentId = 1, ordinal = 0, text = "abc"), AttachmentChunkEntity(attachmentId = 1, ordinal = 1, text = "defg"))
+        assertEquals(mapOf(0 to 0, 1 to 3), AttachmentTool.chunkOffsets(chunks))
+    }
+
     @Test fun matchingModelRanksSemanticResults() {
         val chunks = listOf(AttachmentChunkEntity(attachmentId = 1, ordinal = 0, text = "one", embedding = vector(0f, 1f), modelId = "m:1"),
             AttachmentChunkEntity(attachmentId = 1, ordinal = 1, text = "two", embedding = vector(1f, 0f), modelId = "m:1"))

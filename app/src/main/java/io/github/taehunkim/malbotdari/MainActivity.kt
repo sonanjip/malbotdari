@@ -47,8 +47,20 @@ class MainActivity : AppCompatActivity() {
                 val id = c.chat.newSession()
                 // The application-owned copy continues if the receiving activity is recreated or closed.
                 val appContext = applicationContext
+                val shares = io.github.taehunkim.malbotdari.sharing.SharedDraft
+                shares.beginImport(id)
                 val draft = c.appScope.async(Dispatchers.IO) {
-                    io.github.taehunkim.malbotdari.sharing.SharedDraft.receive(appContext, id, intent, c.db.attachmentDao())
+                    try {
+                        try { shares.receive(appContext, id, intent, c.db.attachmentDao(), onImported = { c.attachments.enqueue(id, it) }) }
+                        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                        catch (e: Exception) {
+                            val text = (if (intent.action == Intent.ACTION_PROCESS_TEXT) intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT) else intent.getCharSequenceExtra(Intent.EXTRA_TEXT))?.toString().orEmpty().take(io.github.taehunkim.malbotdari.sharing.SharedDraft.MAX_TEXT)
+                            io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft(
+                                if (intent.action == Intent.ACTION_PROCESS_TEXT) "" else text, emptyList(),
+                                if (intent.action == Intent.ACTION_PROCESS_TEXT) text else "", rejected = true,
+                            ).also { shares.save(appContext, id, it) }
+                        }
+                    } finally { shares.endImport(id) }
                 }.await()
                 if (draft.rejected) android.widget.Toast.makeText(this@MainActivity, R.string.share_some_failed, android.widget.Toast.LENGTH_LONG).show()
                 openChat.value = id

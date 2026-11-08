@@ -35,3 +35,5 @@ The Room 2 schema was reconstructed without running KSP; compare it with the gen
 Attachment tests include migration/cascade and semantic/keyword ranking. They require the normal Android and JVM test runs; no Gradle tasks were run while implementing these changes.
 
 `ProcessTextAliasTest` launches the contextual-action alias, checks that it targets `MainActivity`, and verifies a quoted draft is created without sending a message.
+
+Attachment readiness, shared image/caption import, OCR context, image tool argument validation, and character-offset reads have regression tests.

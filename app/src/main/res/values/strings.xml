@@ -200,4 +200,7 @@
     <string name="attachment_process">Process</string>
     <string name="attachment_reprocess">Reprocess</string>
     <string name="process_text_label">Ask Malbotdari</string>
+    <string name="attachment_copying">Copying attachments…</string>
+    <string name="attachment_failed_blocked">Retry or remove failed attachments before sending.</string>
+    <string name="attachment_exclude_failed">Exclude failed imports</string>
 </resources>

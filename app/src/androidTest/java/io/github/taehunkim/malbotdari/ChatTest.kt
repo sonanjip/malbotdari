@@ -291,6 +291,49 @@ class ChatTest {
         assertEquals(2, vision.loaded.size)
     }
 
+    @Test fun viewImageRequiresExactlyOneValidId() {
+        val tool = io.github.taehunkim.malbotdari.chat.ViewImageTool(files, true)
+        assertEquals(2, JSONObject(tool.parameters).getJSONArray("oneOf").length())
+        assertTrue(tool.execute(JSONObject()).contains("Error"))
+        assertTrue(tool.execute(JSONObject().put("item_id", 0).put("attachment_id", "a.jpg")).contains("Error"))
+        assertTrue(tool.execute(JSONObject().put("item_id", 1).put("attachment_id", "a.jpg")).contains("Error"))
+        assertTrue(tool.execute(JSONObject().put("item_id", 0)).contains("Error"))
+    }
+
+    @Test fun activeCopyBlocksSendingEvenBeforeTheAttachmentRowExists() = runBlocking {
+        val session = controller.newSession()
+        val shares = io.github.taehunkim.malbotdari.sharing.SharedDraft
+        shares.beginImport(session)
+        try {
+            sendAndWait(session, "hello")
+            assertTrue(db.chatDao().messages(session).isEmpty())
+        } finally { shares.endImport(session) }
+    }
+
+    @Test fun queuedOrFailedLocalAttachmentCannotBeSent() = runBlocking {
+        val session = controller.newSession()
+        val dao = db.attachmentDao()
+        val id = dao.insert(io.github.taehunkim.malbotdari.data.db.AttachmentEntity(sessionId = session, name = "a.txt", mime = "text/plain", fileName = "a", size = 1, state = "QUEUED"))
+        sendAndWait(session, "read", listOf(PendingAttachment.Local(id)))
+        assertTrue(db.chatDao().messages(session).isEmpty())
+        assertFalse(dao.get(id, session)!!.sent)
+        dao.setState(id, "FAILED", "no model")
+        sendAndWait(session, "read", listOf(PendingAttachment.Local(id)))
+        assertTrue(db.chatDao().messages(session).isEmpty())
+    }
+
+    @Test fun sharedImageOcrReachesTextOnlyModelWithAccompanyingText() = runBlocking {
+        val session = controller.newSession()
+        val dao = db.attachmentDao()
+        val id = dao.insert(io.github.taehunkim.malbotdari.data.db.AttachmentEntity(sessionId = session, name = "receipt.jpg", mime = "image/jpeg", fileName = "original", size = 3, state = "READY"))
+        dao.insertChunks(listOf(io.github.taehunkim.malbotdari.data.db.AttachmentChunkEntity(attachmentId = id, ordinal = 0, text = "Total 1234 won")))
+        model = FakeChatModel(false)
+        sendAndWait(session, "What is the price?", listOf(PendingAttachment.Local(id)))
+        val sent = model.calls.single().user.text
+        assertTrue(sent, sent.contains("Total 1234 won"))
+        assertTrue(sent, sent.contains("What is the price?"))
+    }
+
     @Test fun localImageToolIsScopedToTheChatAndSharesTheTwoImageLimit() {
         val tool = io.github.taehunkim.malbotdari.chat.ViewImageTool(files, true, 2, setOf("a.jpg", "b.jpg", "c.jpg")) { byteArrayOf(1, 2) }
         assertTrue(tool.execute(JSONObject().put("attachment_id", "../other.jpg")).contains("No such"))

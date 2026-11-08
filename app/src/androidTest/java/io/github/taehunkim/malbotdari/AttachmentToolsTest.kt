@@ -37,4 +37,28 @@ class AttachmentToolsTest {
             assertTrue(dao.chunks(id).isEmpty())
         } finally { db.close() }
     }
+    @Test fun readUsesCharacterOffsetsAcrossChunksAndSearchSchemaHasLimit() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
+        try {
+            val session = db.chatDao().insertSession(ChatSessionEntity(title = "a", enabledTools = "", autoSearch = false, createdAt = 1, updatedAt = 1))
+            val dao = db.attachmentDao()
+            val id = dao.insert(AttachmentEntity(sessionId = session, name = "a.txt", mime = "text/plain", fileName = "a", size = 6, state = "READY", sent = true))
+            dao.insertChunks(listOf(AttachmentChunkEntity(attachmentId = id, ordinal = 0, text = "abc"), AttachmentChunkEntity(attachmentId = id, ordinal = 1, text = "def")))
+            val host = OndolSaemClient(context)
+            val read = AttachmentTool(dao, host, session, false)
+            val result = JSONObject(read.execute(JSONObject().put("attachment_id", id).put("offset", 2).put("max_chars", 3)))
+            assertEquals("cde", result.getString("text"))
+            assertEquals(5, result.getInt("next_offset"))
+            assertEquals(6, result.getInt("total_chars"))
+            assertTrue(read.execute(JSONObject().put("attachment_id", id).put("offset", -1)).contains("Error"))
+            val search = AttachmentTool(dao, host, session, true, queryEmbedding = { null })
+            assertTrue(JSONObject(search.parameters).getJSONObject("properties").has("limit"))
+            assertTrue(search.execute(JSONObject().put("attachment_id", id).put("query", "a").put("limit", 0)).contains("Error"))
+            val matches = JSONObject(search.execute(JSONObject().put("attachment_id", id).put("query", "a d").put("limit", 1))).getJSONArray("matches")
+            assertEquals(1, matches.length())
+            assertEquals(0, matches.getJSONObject(0).getInt("offset"))
+        } finally { db.close() }
+    }
+
 }

@@ -35,6 +35,6 @@ Use the document attachment button or Android Share to add local text, PDFs, Off
 
 Extraction is bounded to 25 MiB for plain text, 500 PDF pages, four hours of audio, and one million extracted characters. Very large originals can be imported within the file limit but may need to be split for processing.
 
-Imported files wait for your choice; tap **Process** to extract their contents on the device.
+Imported files are processed automatically on the device. Sending waits while files are copied, extracted, transcribed, or indexed; retry a failed attachment or remove it to continue. If copying fails, select the file again if desired, then acknowledge exclusion of the failed import.
 
 Use Reprocess after adding or changing the embedding model to rebuild an attachment's searchable chunks. The app may use keyword matching when embeddings are unavailable. Office archive entries above 16 MiB cannot be extracted.

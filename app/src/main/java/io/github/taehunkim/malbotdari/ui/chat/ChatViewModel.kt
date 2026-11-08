@@ -70,6 +70,8 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     val files = c.files.state
     val localItems = c.db.attachmentDao().observeSession(sessionId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val activeImports = io.github.taehunkim.malbotdari.sharing.SharedDraft.imports.map { it[sessionId] ?: 0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val localPending = localItems.map { items -> items.filter { !it.sent } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun dismissAction(id: Long) { viewModelScope.launch { c.actions.dismiss(id) } }
@@ -120,14 +122,20 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
 
     fun send() {
         val text = draft.trim()
-        val local = localPending.value.map { PendingAttachment.Local(it.attachmentId) }
-        if (text.isEmpty() && pending.isEmpty() && local.isEmpty()) return
         val sent = pending.toList()
-        controller.send(sessionId, text, sent + local) {
-            viewModelScope.launch {
-                if (draft.trim() == text && pending == sent) {
-                    draft = ""; pending = emptyList()
-                    io.github.taehunkim.malbotdari.sharing.SharedDraft.clear(c.context, sessionId)
+        viewModelScope.launch {
+            val imports = io.github.taehunkim.malbotdari.sharing.SharedDraft.imports.value[sessionId] ?: 0
+            val items = c.db.attachmentDao().ofSession(sessionId)
+            if (!io.github.taehunkim.malbotdari.attachments.AttachmentReadiness.canSend(imports, items.map { it.state }, importFailed) ||
+                (io.github.taehunkim.malbotdari.sharing.SharedDraft.imports.value[sessionId] ?: 0) != 0) return@launch
+            val local = items.filter { !it.sent }.map { PendingAttachment.Local(it.attachmentId) }
+            if (text.isEmpty() && sent.isEmpty() && local.isEmpty()) return@launch
+            controller.send(sessionId, text, sent + local) {
+                viewModelScope.launch {
+                    if (draft.trim() == text && pending == sent) {
+                        draft = ""; pending = emptyList()
+                        io.github.taehunkim.malbotdari.sharing.SharedDraft.clear(c.context, sessionId)
+                    }
                 }
             }
         }
@@ -136,22 +144,35 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     fun stop() = controller.stop()
     fun dismissError() = controller.dismissError()
     fun addPhoto(uri: Uri) { pending = pending + PendingAttachment.Photo(uri) }
-    var importFailed by mutableStateOf(false)
+    var importFailed by mutableStateOf(sharedDraft?.rejected == true)
         private set
-    fun dismissImportError() { importFailed = false }
-    fun addFiles(uris: List<Uri>) { viewModelScope.launch {
+    fun dismissImportError() { importFailed = false; persistSharedDraft(forceRejected = false) }
+    fun addFiles(uris: List<Uri>) {
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).setType("*/*")
             .putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(uris))
-        val result = c.appScope.async(kotlinx.coroutines.Dispatchers.IO) {
+        val shares = io.github.taehunkim.malbotdari.sharing.SharedDraft
+        shares.beginImport(sessionId)
+        val task = c.appScope.async(kotlinx.coroutines.Dispatchers.IO) {
             val resolver = c.context.contentResolver
             val persisted = uris.filter { uri -> runCatching { resolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }.isSuccess }
-            try { io.github.taehunkim.malbotdari.sharing.SharedDraft.receive(c.context, sessionId, intent, c.db.attachmentDao(), persist = false) }
-            finally { persisted.forEach { uri -> runCatching { resolver.releasePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } } }
-        }.await()
-        pending = pending + result.images.map { PendingAttachment.Photo(Uri.fromFile(java.io.File(c.context.filesDir, "chat/$sessionId/$it"))) }
-        persistSharedDraft()
-        importFailed = result.rejected
-    } }
+            try {
+                try {
+                    shares.receive(c.context, sessionId, intent, c.db.attachmentDao(), persist = false, onImported = { c.attachments.enqueue(sessionId, it) })
+                        .also { if (it.rejected) shares.setRejected(c.context, sessionId, true) }
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (e: Exception) { shares.setRejected(c.context, sessionId, true); io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft("", emptyList(), rejected = true) }
+            } finally {
+                persisted.forEach { uri -> runCatching { resolver.releasePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
+                shares.endImport(sessionId)
+            }
+        }
+        viewModelScope.launch {
+            val result = task.await()
+            pending = pending + result.images.map { PendingAttachment.Photo(Uri.fromFile(java.io.File(c.context.filesDir, "chat/$sessionId/$it"))) }
+            importFailed = importFailed || result.rejected || shares.load(c.context, sessionId)?.rejected == true
+            persistSharedDraft(forceRejected = importFailed)
+        }
+    }
     fun retryLocal(id: Long) { viewModelScope.launch { c.db.attachmentDao().setState(id, "QUEUED"); c.attachments.enqueue(sessionId, id) } }
     fun removeLocal(id: Long) { viewModelScope.launch {
         val dao = c.db.attachmentDao()
@@ -161,13 +182,13 @@ class ChatViewModel(private val c: AppContainer, val sessionId: Long) : ViewMode
     } }
     fun removePending(a: PendingAttachment) { pending = pending - a; persistSharedDraft() }
 
-    private fun persistSharedDraft() {
-        if (sharedDraft == null) return
+    private fun persistSharedDraft(forceRejected: Boolean? = null) {
         val images = pending.filterIsInstance<PendingAttachment.Photo>().mapNotNull { photo ->
             photo.uri.path?.let { java.io.File(it) }?.takeIf { photo.uri.scheme == "file" && it.name.startsWith("incoming-") }?.name
         }
         io.github.taehunkim.malbotdari.sharing.SharedDraft.save(c.context, sessionId,
-            io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft(draft, images, pending.filterIsInstance<PendingAttachment.Quote>().firstOrNull()?.text.orEmpty()))
+            io.github.taehunkim.malbotdari.sharing.SharedDraft.Draft(draft, images, pending.filterIsInstance<PendingAttachment.Quote>().firstOrNull()?.text.orEmpty(),
+                forceRejected ?: (importFailed || io.github.taehunkim.malbotdari.sharing.SharedDraft.load(c.context, sessionId)?.rejected == true)))
     }
 
     fun toggleTool(name: String) = viewModelScope.launch {

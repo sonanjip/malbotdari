@@ -160,6 +160,16 @@ class ChatController(
         try {
             val session = chat.session(sessionId) ?: return TurnResult("", "no_chat")
             _run.value = ChatRun(sessionId, ChatPhase.LOADING)
+            val localIds = pending.filterIsInstance<PendingAttachment.Local>()
+            val unsettled = task == null && (
+                (io.github.taehunkim.malbotdari.sharing.SharedDraft.imports.value[sessionId] ?: 0) > 0 ||
+                    io.github.taehunkim.malbotdari.sharing.SharedDraft.load(context, sessionId)?.rejected == true ||
+                    localAttachments?.ofSession(sessionId).orEmpty().any { it.state != "READY" }
+                )
+            if (unsettled || localIds.any { localAttachments?.get(it.attachmentId, sessionId)?.state != "READY" }) {
+                _run.value = ChatRun(sessionId, ChatPhase.FAILED, error = "Attachments are still processing or need retry/removal")
+                return TurnResult("", "attachment_not_ready")
+            }
             val lease = residency.chat() ?: run {
                 _run.value = ChatRun(sessionId, ChatPhase.FAILED, error = NO_MODEL)
                 return TurnResult("", NO_MODEL)
@@ -177,8 +187,13 @@ class ChatController(
                     is PendingAttachment.Local -> {
                         val item = localAttachments?.get(a.attachmentId, sessionId) ?: throw java.io.IOException("An attachment is no longer available")
                         attachmentsJson.put(JSONObject().put("attachmentId", item.attachmentId).put("name", item.name))
-                        extra.append("[Attached local file: ${item.name} (attachment_id=${item.attachmentId}, state=${item.state})] " +
-                            if (item.mime.startsWith("image/")) "Use view_image with attachment_id to see it; search_in_attachment can search extracted text.\n" else "Use search_in_attachment and read_attachment.\n")
+                        extra.append("[Attached local file: ${item.name} (attachment_id=${item.attachmentId}, state=${item.state})] ")
+                        if (item.mime.startsWith("image/") && !model.supportsImages) {
+                            val ocr = localAttachments?.chunks(item.attachmentId).orEmpty().joinToString("") { it.text }.take(1200)
+                            extra.append("This model cannot see images. Extracted image text: ")
+                                .append(ocr.ifBlank { "No text was recognized." }).append("\n")
+                        } else if (item.mime.startsWith("image/")) extra.append("Use view_image with attachment_id to see it; search_in_attachment can search extracted text.\n")
+                        else extra.append("Use search_in_attachment and read_attachment.\n")
                     }
                     is PendingAttachment.Quote -> {
                         attachmentsJson.put(JSONObject().put("quote", a.text))

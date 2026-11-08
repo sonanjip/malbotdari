@@ -51,3 +51,5 @@ Android shares create a new chat. Incoming files are copied into private per-cha
 Room version 2 adds private chat attachments and text chunks, linked to their chat with cascading foreign keys. Processing states and errors are persisted per attachment; the version 1 to 2 migration keeps existing chats.
 
 Shared or picked documents, images, and audio are copied under the chat's private directory and tracked in Room. A serialized processor extracts text or speech, saves bounded chunks and optional OndolSaem embeddings, and resumes interrupted work on startup. Local tools are scoped to the chat ID and use keyword search when embeddings are unavailable. PDFBox reads PDF text; OCR is requested for scanned pages and images, while audio is decoded to 16 kHz PCM for OndolSaem transcription.
+
+File imports are tracked per chat while URI bytes are copied. New files enter the durable queue immediately, and sending is blocked until copying and processing finish; failed files must be retried or removed. The read tool uses character offsets over concatenated chunks.

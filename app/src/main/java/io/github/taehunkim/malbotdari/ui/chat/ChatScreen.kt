@@ -92,6 +92,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
     val run by vm.run.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val localPending by vm.localPending.collectAsStateWithLifecycle()
+    val activeImports by vm.activeImports.collectAsStateWithLifecycle()
     val localItems by vm.localItems.collectAsStateWithLifecycle()
     val names by vm.names.collectAsStateWithLifecycle()
     val modelReady by vm.modelReady.collectAsStateWithLifecycle()
@@ -185,7 +186,9 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                 }
             }
         }
-        if (vm.importFailed) WarningCard(stringResource(R.string.share_some_failed), stringResource(R.string.chat_dismiss), vm::dismissImportError)
+        if (activeImports > 0) Text(stringResource(R.string.attachment_copying), modifier = Modifier.padding(horizontal = 16.dp))
+        if (localItems.any { it.state == "FAILED" }) Text(stringResource(R.string.attachment_failed_blocked), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+        if (vm.importFailed) WarningCard(stringResource(R.string.share_some_failed), stringResource(R.string.attachment_exclude_failed), vm::dismissImportError)
         Column(Modifier.heightIn(max = 160.dp).verticalScroll(rememberScrollState())) {
         localItems.forEach { item ->
             val status = stringResource(when (item.state) {
@@ -197,8 +200,8 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
             })
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${item.name} · $status" + (item.error?.let { ": $it" } ?: ""), Modifier.weight(1f), maxLines = 2)
-                if (item.state == "FAILED" || item.state == "AWAITING" || item.state == "READY") androidx.compose.material3.TextButton(onClick = { vm.retryLocal(item.attachmentId) }) {
-                    Text(stringResource(when (item.state) { "AWAITING" -> R.string.attachment_process; "READY" -> R.string.attachment_reprocess; else -> R.string.attachment_retry }))
+                if (item.state == "FAILED" || item.state == "READY") androidx.compose.material3.TextButton(onClick = { vm.retryLocal(item.attachmentId) }) {
+                    Text(stringResource(if (item.state == "READY") R.string.attachment_reprocess else R.string.attachment_retry))
                 }
                 IconButton(onClick = { vm.removeLocal(item.attachmentId) }) { Icon(Icons.Filled.Close, stringResource(R.string.chat_remove_attachment)) }
             }
@@ -243,7 +246,7 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
             if (busy) {
                 IconButton(onClick = vm::stop) { Icon(Icons.Filled.Stop, stringResource(R.string.chat_stop)) }
             } else {
-                IconButton(onClick = vm::send, enabled = modelReady && (vm.draft.isNotBlank() || vm.pending.isNotEmpty() || localPending.isNotEmpty())) {
+                IconButton(onClick = vm::send, enabled = modelReady && io.github.taehunkim.malbotdari.attachments.AttachmentReadiness.canSend(activeImports, localItems.map { it.state }, vm.importFailed) && (vm.draft.isNotBlank() || vm.pending.isNotEmpty() || localPending.isNotEmpty())) {
                     Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.chat_send))
                 }
             }

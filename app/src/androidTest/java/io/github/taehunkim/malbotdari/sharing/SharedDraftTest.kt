@@ -29,7 +29,61 @@ class SharedDraftTest {
         val result = SharedDraft.receive(context, id, Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, "x".repeat(SharedDraft.MAX_TEXT + 1)))
         assertEquals(SharedDraft.MAX_TEXT, result.text.length)
         assertTrue(result.rejected)
+        assertTrue(SharedDraft.load(context, id)!!.rejected)
         SharedDraft.clear(context, id)
+    }
+
+    @Test fun preservesSharedTextAndClipTextWithoutDuplicatingIt() = runBlocking {
+        val id = System.nanoTime()
+        val intent = Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, "Question")
+        intent.clipData = android.content.ClipData.newPlainText("caption", "Question")
+        assertEquals("Question", SharedDraft.receive(context, id, intent).text)
+        intent.clipData = android.content.ClipData.newPlainText("caption", "More context")
+        assertEquals("Question\nMore context", SharedDraft.receive(context, id, intent).text)
+        SharedDraft.clear(context, id)
+    }
+
+    @Test fun importFailureFlagIsDurableWithoutDiscardingDraftText() {
+        val id = System.nanoTime()
+        try {
+            SharedDraft.save(context, id, SharedDraft.Draft("Keep this question", emptyList()))
+            SharedDraft.setRejected(context, id, true)
+            assertEquals("Keep this question", SharedDraft.load(context, id)!!.text)
+            assertTrue(SharedDraft.load(context, id)!!.rejected)
+            SharedDraft.setRejected(context, id, false)
+            assertFalse(SharedDraft.load(context, id)!!.rejected)
+        } finally { SharedDraft.clear(context, id) }
+    }
+
+    @Test fun tracksOverlappingCopiesPerChat() {
+        val id = System.nanoTime()
+        SharedDraft.beginImport(id); SharedDraft.beginImport(id)
+        try {
+            assertEquals(2, SharedDraft.imports.value[id])
+            SharedDraft.endImport(id)
+            assertEquals(1, SharedDraft.imports.value[id])
+        } finally { SharedDraft.endImport(id) }
+        assertNull(SharedDraft.imports.value[id])
+    }
+
+    @Test fun sharedImageAndCaptionQueueAnAttachmentTogether() = runBlocking {
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, io.github.taehunkim.malbotdari.data.db.AppDatabase::class.java).build()
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            android.content.ContentValues().apply { put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "sharing-test.jpg"); put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg") })!!
+        try {
+            context.contentResolver.openOutputStream(uri)!!.use { it.write(byteArrayOf(1, 2, 3)) }
+            val session = db.chatDao().insertSession(io.github.taehunkim.malbotdari.data.db.ChatSessionEntity(title = "", enabledTools = "", autoSearch = false, createdAt = 1, updatedAt = 1))
+            val queued = mutableListOf<Long>()
+            val intent = Intent(Intent.ACTION_SEND).setType("image/jpeg").putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_TEXT, "Read this receipt")
+            val result = SharedDraft.receive(context, session, intent, db.attachmentDao(), onImported = { queued += it })
+            val item = db.attachmentDao().ofSession(session).single()
+            assertEquals("Read this receipt", result.text)
+            assertEquals("QUEUED", item.state)
+            assertEquals(listOf(item.attachmentId), queued)
+            assertEquals(3L, item.size)
+            java.io.File(context.filesDir, "chat/$session").deleteRecursively()
+            SharedDraft.clear(context, session)
+        } finally { context.contentResolver.delete(uri, null, null); db.close() }
     }
 
     @Test fun fileUrisAreNeverImported() = runBlocking {
