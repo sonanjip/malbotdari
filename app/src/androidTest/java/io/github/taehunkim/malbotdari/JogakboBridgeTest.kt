@@ -24,7 +24,7 @@ class JogakboBridgeTest {
         val bridge = JogakboBridge(ctx)
         assumeTrue("Jogakbo is not installed", bridge.client.isInstalled())
         assertEquals(NotesState.Status.CONNECTED, bridge.refresh().status)
-        assertEquals(setOf("search_notes", "read_note"), bridge.tools().map { it.name }.toSet())
+        assertEquals(setOf("search_notes", "read_note", "search_in_note"), bridge.tools().map { it.name }.toSet())
         val out = bridge.runTool("search_notes", """{"query":"zzzz-nothing-matches-this"}""")
         assertTrue(out, out == "No matching notes." || out.startsWith("["))
         val start = bridge.client.changesSince(0)

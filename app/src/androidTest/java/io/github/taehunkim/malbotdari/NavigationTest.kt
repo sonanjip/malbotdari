@@ -56,10 +56,15 @@ class NavigationTest {
                 val intent = android.content.Intent(android.content.Intent.ACTION_SEND).setClass(rule.activity, MainActivity::class.java)
                     .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "Incoming shared text")
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                rule.activity.startActivity(intent)
+                val launchIntent = rule.activity.intent
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().callActivityOnNewIntent(rule.activity, intent)
+                // ActivityScenario tracks lifecycle by launch intent; onNewIntent changes it.
+                rule.activity.intent = launchIntent
             }
             rule.waitUntil(10_000) { runCatching { rule.onNodeWithTag("chat_input").assertTextContains("Incoming shared text") }.isSuccess }
-            rule.runOnIdle { rule.activity.onBackPressedDispatcher.onBackPressed() }
+            rule.onNodeWithTag("nav_up").performClick()
+            rule.waitUntil(10_000) { runCatching { rule.onNodeWithText("Draft preservation test").assertIsDisplayed() }.isSuccess }
+            rule.onNodeWithText("Draft preservation test").performClick()
             rule.waitUntil(10_000) { runCatching { rule.onNodeWithTag("chat_input").assertTextContains("Unsent original question") }.isSuccess }
             org.junit.Assert.assertEquals("Unsent original question", io.github.taehunkim.malbotdari.sharing.SharedDraft.load(rule.activity, id)?.text)
         } finally { runBlocking { container.chat.deleteSession(id) } }
