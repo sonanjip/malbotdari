@@ -22,6 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
@@ -285,12 +286,64 @@ class ChatTest {
                 listOf(ChatEvent.ToolRan(it.name, "{}", it.execute(JSONObject().put("item_id", image))), ChatEvent.Token("Loading"))
             } ?: listOf(ChatEvent.Token("A cat"))
         }
-        val id = controller.newSession()
-        sendAndWait(id, "what is in this photo?", listOf(PendingAttachment.Item(image)))
-        assertEquals(2, model.calls.size)
-        assertTrue(model.calls.last().user.images.single().contentEquals(byteArrayOf(1, 2, 3)))
-        assertEquals("A cat", db.chatDao().messages(id).last().text)
-        assertTrue(model.calls.last().user.text.contains("what is in this photo?"))
+        val partials = ArrayList<String>()
+        val collector = launch(Dispatchers.Unconfined) {
+            controller.run.collect { it?.let { r -> partials += r.partial } }
+        }
+        try {
+            val id = controller.newSession()
+            sendAndWait(id, "what is in this photo?", listOf(PendingAttachment.Item(image)))
+            assertEquals(2, model.calls.size)
+            assertTrue(model.calls.last().user.images.single().contentEquals(byteArrayOf(1, 2, 3)))
+            assertFalse("second vision pass must not expose view_image again", "view_image" in model.calls.last().tools)
+            assertFalse("second vision pass must not tell the model to call view_image again", "view_image" in model.calls.last().system)
+            assertEquals("A cat", db.chatDao().messages(id).last().text)
+            assertTrue(model.calls.last().user.text.contains("what is in this photo?"))
+            assertTrue("first-pass placeholder must not be shown", partials.none { "Loading" in it })
+            assertTrue("final vision answer must be streamed", partials.any { it == "A cat" })
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test fun firstPassTokensAreClearedAndSuppressedOnceViewImageLoadsAnImage() = runBlocking {
+        val image = addItem("cat.jpg", ItemKind.IMAGE)
+        files.thumbnails[image] = byteArrayOf(1, 2, 3)
+        var callCount = 0
+        val streamModel = object : ChatModel {
+            override val supportsImages = true
+            override fun reply(conversationKey: String, system: String, history: List<ChatTurn>, user: ChatTurn, tools: List<ChatTool>): Flow<ChatEvent> = flow {
+                if (callCount++ == 0) {
+                    val tool = tools.first { it.name == "view_image" }
+                    emit(ChatEvent.Token("Checking "))
+                    val res = tool.execute(JSONObject().put("item_id", image))
+                    emit(ChatEvent.ToolRan(tool.name, "{}", res))
+                    emit(ChatEvent.Token("I cannot recognize this image."))
+                } else {
+                    emit(ChatEvent.Token("A sleeping cat"))
+                }
+            }
+            override fun reset() {}
+            override fun close() {}
+        }
+        residency.chatOverride = { streamModel }
+        val partials = ArrayList<String>()
+        val collector = launch(Dispatchers.Unconfined) {
+            controller.run.collect { it?.let { r -> partials += r.partial } }
+        }
+        try {
+            val id = controller.newSession()
+            sendAndWait(id, "what is in this photo?", listOf(PendingAttachment.Item(image)))
+            assertEquals(2, callCount)
+            assertEquals("A sleeping cat", db.chatDao().messages(id).last().text)
+            assertTrue("post-tool placeholder must not be shown", partials.none { "cannot recognize" in it })
+            val checkingIdx = partials.indexOfFirst { "Checking" in it }
+            val resetIdx = partials.drop(checkingIdx.coerceAtLeast(0)).indexOfFirst { it.isEmpty() }
+            assertTrue("pre-tool text should be cleared after view_image runs", checkingIdx < 0 || resetIdx >= 0)
+            assertEquals("A sleeping cat", partials.last())
+        } finally {
+            collector.cancel()
+        }
     }
 
     @Test fun viewImageRejectsTextModelsAndEnforcesTheTwoImageLimit() = runBlocking {
@@ -360,11 +413,11 @@ class ChatTest {
     }
 
     @Test fun localImageToolIsScopedToTheChatAndSharesTheTwoImageLimit() {
-        val tool = io.github.taehunkim.malbotdari.chat.ViewImageTool(files, true, 2, setOf("a.jpg", "b.jpg", "c.jpg")) { byteArrayOf(1, 2) }
+        val tool = io.github.taehunkim.malbotdari.chat.ViewImageTool(files, true, 2, setOf("a.jpg", "2", "c.jpg")) { byteArrayOf(1, 2) }
         assertTrue(tool.execute(JSONObject().put("attachment_id", "../other.jpg")).contains("No such"))
         assertTrue(tool.execute(JSONObject().put("attachment_id", "a.jpg")).contains("Image requested"))
         assertTrue(tool.execute(JSONObject().put("attachment_id", "a.jpg")).contains("already"))
-        assertTrue(tool.execute(JSONObject().put("attachment_id", "b.jpg")).contains("Image requested"))
+        assertTrue("numeric local attachment_id passed via item_id still resolves the local image", tool.execute(JSONObject().put("item_id", 2)).contains("Image requested"))
         assertTrue(tool.execute(JSONObject().put("attachment_id", "c.jpg")).contains("Only two"))
         assertEquals(2, tool.loaded.size)
     }
@@ -865,5 +918,119 @@ class ChatTest {
         assertTrue("Generated image file should exist on disk", savedFile.exists())
         assertEquals(8, savedFile.length())
         assertEquals("I generated the image for you.", msgs.last().text)
+    }
+
+    @Test fun generateImageStripsDuplicateToolCallTagWhenNativeToolAlsoRan() = runBlocking {
+        val fakePng = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        residency.imageGenOverride = { _, _ -> fakePng }
+        val chat = controller.newSession()
+        val prompt = "A majestic golden retriever sitting peacefully in a meadow of wildflowers"
+        model = FakeChatModel { tools ->
+            val tool = tools.first { it.name == ChatToolNames.GENERATE_IMAGE }
+            val result = tool.execute(JSONObject().put("prompt", prompt))
+            listOf(
+                ChatEvent.ToolRan(tool.name, JSONObject().put("prompt", prompt).toString(), result),
+                ChatEvent.Token("이미지를 생성했습니다.\n<tool name=\"generate_image\">$prompt</tool>"),
+            )
+        }
+        controller.send(chat, "들판의 골든 리트리버 그려줘"); awaitIdle()
+        val msgs = db.chatDao().messages(chat)
+        val assistantMsgs = msgs.filter { it.role == ChatRole.ASSISTANT }
+        assertEquals(1, assistantMsgs.size)
+        assertEquals("이미지를 생성했습니다.", assistantMsgs.single().text)
+    }
+
+    @Test fun generateImageWithholdsCompletionTextUntilImageFinishes() = runBlocking {
+        val fakePng = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        var partialDuringImageGen: String? = null
+        val prompt = "A cartoon man making an OK gesture"
+        residency.imageGenOverride = { _, _ ->
+            partialDuringImageGen = controller.run.value?.partial
+            assertEquals(ChatPhase.GENERATING_IMAGE, controller.run.value?.phase)
+            fakePng
+        }
+        val chat = controller.newSession()
+        model = FakeChatModel { tools ->
+            val tool = tools.first { it.name == ChatToolNames.GENERATE_IMAGE }
+            val result = tool.execute(JSONObject().put("prompt", prompt))
+            listOf(
+                ChatEvent.ToolRan(tool.name, JSONObject().put("prompt", prompt).toString(), result),
+                ChatEvent.Token("이미지를 생성했습니다. 생성된 이미지를 확인해 주세요."),
+            )
+        }
+        val partials = ArrayList<String>()
+        val collector = launch(Dispatchers.Unconfined) {
+            controller.run.collect { it?.let { r -> partials += r.partial } }
+        }
+        try {
+            controller.send(chat, "카툰 버전으로 그려줘"); awaitIdle()
+            assertEquals("", partialDuringImageGen)
+            assertTrue("completion text must not stream before image finishes", partials.none { "생성했습니다" in it })
+            val msgs = db.chatDao().messages(chat)
+            assertEquals("이미지를 생성했습니다. 생성된 이미지를 확인해 주세요.", msgs.last().text)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test fun generateImageFailureDiscardsCompletionTextAndRecordsError() = runBlocking {
+        residency.imageGenOverride = { _, _ -> throw RuntimeException("GPU allocation failed") }
+        val chat = controller.newSession()
+        val prompt = "A cartoon man making an OK gesture"
+        model = FakeChatModel { tools ->
+            val tool = tools.first { it.name == ChatToolNames.GENERATE_IMAGE }
+            val result = tool.execute(JSONObject().put("prompt", prompt))
+            listOf(
+                ChatEvent.ToolRan(tool.name, JSONObject().put("prompt", prompt).toString(), result),
+                ChatEvent.Token("이미지를 생성했습니다. 생성된 이미지를 확인해 주세요."),
+            )
+        }
+        controller.send(chat, "카툰 버전으로 그려줘"); awaitIdle()
+        val msgs = db.chatDao().messages(chat)
+        val toolMsg = msgs.single { it.role == ChatRole.TOOL }
+        val toolJson = JSONObject(toolMsg.text)
+        assertEquals("error", toolJson.optString("status"))
+        assertEquals("GPU allocation failed", toolJson.optString("message"))
+        assertTrue("optimistic completion message must not be saved on failure", msgs.none { it.role == ChatRole.ASSISTANT })
+    }
+
+    @Test fun visionPassRetainsGenerateImageToolForSingleTurnImageCreation() = runBlocking {
+        val image = addItem("portrait.jpg", ItemKind.IMAGE)
+        files.thumbnails[image] = byteArrayOf(1, 2, 3)
+        val fakePng = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        residency.imageGenOverride = { prompt, _ ->
+            assertEquals("Cartoon portrait of the person in the photo", prompt)
+            fakePng
+        }
+        var callCount = 0
+        val twoPassModel = object : ChatModel {
+            override val supportsImages = true
+            override fun reply(conversationKey: String, system: String, history: List<ChatTurn>, user: ChatTurn, tools: List<ChatTool>): Flow<ChatEvent> = flow {
+                if (callCount++ == 0) {
+                    val viewTool = tools.first { it.name == "view_image" }
+                    val res = viewTool.execute(JSONObject().put("item_id", image))
+                    emit(ChatEvent.ToolRan(viewTool.name, "{}", res))
+                } else {
+                    assertTrue("second vision pass must keep generate_image", tools.any { it.name == ChatToolNames.GENERATE_IMAGE })
+                    assertTrue("second vision pass system prompt must allow generate_image", system.contains("generate_image"))
+                    val genTool = tools.first { it.name == ChatToolNames.GENERATE_IMAGE }
+                    val args = JSONObject().put("prompt", "Cartoon portrait of the person in the photo")
+                    val res = genTool.execute(args)
+                    emit(ChatEvent.ToolRan(genTool.name, args.toString(), res))
+                    emit(ChatEvent.Token("카툰 버전 이미지를 생성했습니다."))
+                }
+            }
+            override fun reset() {}
+            override fun close() {}
+        }
+        residency.chatOverride = { twoPassModel }
+        val id = controller.newSession()
+        sendAndWait(id, "이 이미지 카툰버전 생성해줘", listOf(PendingAttachment.Item(image)))
+        assertEquals(2, callCount)
+        val msgs = db.chatDao().messages(id)
+        val genToolMsg = msgs.last { it.role == ChatRole.TOOL }
+        assertEquals(ChatToolNames.GENERATE_IMAGE, genToolMsg.toolName)
+        assertEquals("success", JSONObject(genToolMsg.text).optString("status"))
+        assertEquals("카툰 버전 이미지를 생성했습니다.", msgs.last().text)
     }
 }

@@ -83,6 +83,9 @@
     <string name="chat_tool_generate_image">이미지 생성</string>
     <string name="chat_tool_ran_generate_image">이미지 생성: “%1$s”</string>
     <string name="chat_image_generating">이미지 생성 중…</string>
+    <string name="chat_image_failed">이미지 생성에 실패했습니다</string>
+    <string name="chat_image_failed_reason">이미지 생성에 실패했습니다: %1$s</string>
+    <string name="chat_image_cancelled">이미지 생성이 취소되었습니다</string>
     <string name="chat_image_save">이미지 저장</string>
     <string name="chat_image_saved">갤러리에 저장했습니다</string>
     <string name="chat_image_save_failed">이미지 저장에 실패했습니다</string>

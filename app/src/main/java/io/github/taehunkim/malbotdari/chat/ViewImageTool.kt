@@ -25,15 +25,24 @@ class ViewImageTool(
         val id = if (hasItem && !args.isNull("item_id")) args.optLong("item_id", -1) else -1
         if ((hasLocal && localId.isEmpty()) || (hasItem && id <= 0)) return@runBlocking "Error: the selected id must be valid."
         if (!vision) return@runBlocking "This model cannot see images. Use read_attachment for local image OCR or read_file for indexed OCR."
-        val key = if (localId.isNotEmpty()) "local:$localId" else "item:$id"
+        val resolvedLocalId = localId.ifEmpty { if (hasItem && id.toString() in localImages) id.toString() else "" }
+        val key = if (resolvedLocalId.isNotEmpty()) "local:$resolvedLocalId" else "item:$id"
         if (key in ids) return@runBlocking "Image already requested."
         if (loaded.size >= capacity) return@runBlocking "Only two images can be viewed per question. Ask about the remaining ones in another message."
         try {
-            if (localId.isNotEmpty()) {
-                if (localId !in localImages) return@runBlocking "No such image in this chat."
-                val bytes = loadLocal(localId) ?: return@runBlocking "No image preview available."
-                loaded += "attachment_id=$localId" to bytes
-                ids += key
+            if (resolvedLocalId.isNotEmpty()) {
+                if (resolvedLocalId in localImages) {
+                    val bytes = loadLocal(resolvedLocalId) ?: return@runBlocking "No image preview available."
+                    loaded += "attachment_id=$resolvedLocalId" to bytes
+                    ids += key
+                    return@runBlocking "Image requested. It will be supplied before the final answer; do not invent its contents yet."
+                }
+                val fallbackItemId = resolvedLocalId.toLongOrNull()?.takeIf { it > 0 }
+                val fallbackBytes = fallbackItemId?.let { runCatching { files.thumbnail(it, 1024) }.getOrNull() }
+                    ?: return@runBlocking "No such image in this chat."
+                val label = runCatching { files.items(listOf(fallbackItemId)).firstOrNull()?.name }.getOrNull() ?: "item_id=$fallbackItemId"
+                loaded += "$label (item_id=$fallbackItemId)" to fallbackBytes
+                ids += "item:$fallbackItemId"
                 return@runBlocking "Image requested. It will be supplied before the final answer; do not invent its contents yet."
             }
             val bytes = files.thumbnail(id, 1024) ?: return@runBlocking "No image preview available for this item. Do not guess its visual contents."

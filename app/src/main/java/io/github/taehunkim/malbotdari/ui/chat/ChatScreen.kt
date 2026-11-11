@@ -167,7 +167,11 @@ fun ChatScreen(sessionId: Long, onOpenSettings: () -> Unit) {
                         }
                         ChatPhase.GENERATING_IMAGE -> {
                             if (r.partial.isNotEmpty()) Bubble(r.partial, mine = false, actions = false)
-                            StatusRow(stringResource(R.string.chat_image_generating))
+                            val cardGenerating = messages.any { m ->
+                                m.toolName == ChatToolNames.GENERATE_IMAGE &&
+                                    runCatching { JSONObject(m.text).optString("status") == "generating" }.getOrDefault(false)
+                            }
+                            if (!cardGenerating) StatusRow(stringResource(R.string.chat_image_generating))
                         }
                         ChatPhase.FAILED -> WarningCard(
                             if (r.error == ChatController.NO_MODEL) stringResource(R.string.chat_model_missing) else stringResource(R.string.chat_error, r.error.orEmpty()),
@@ -424,7 +428,11 @@ private fun ToolCard(m: ChatMessageEntity, onOpenItem: (Long) -> Unit) {
     val noteRead = remember(m.text) { if (m.toolName == ChatToolNames.READ_NOTE) runCatching { JSONObject(m.text) }.getOrNull() else null }
     val genResult = remember(m.text) { if (m.toolName == ChatToolNames.GENERATE_IMAGE) runCatching { JSONObject(m.text) }.getOrNull() else null }
     val genImagePath = genResult?.optString("image_path")?.takeIf { it.isNotEmpty() }
-    val isGenerating = m.toolName == ChatToolNames.GENERATE_IMAGE && genImagePath == null && genResult?.optString("status") == "generating"
+    val genStatus = genResult?.optString("status").orEmpty()
+    val isGenerating = m.toolName == ChatToolNames.GENERATE_IMAGE && genImagePath == null && genStatus == "generating"
+    val genError = if (m.toolName == ChatToolNames.GENERATE_IMAGE && genImagePath == null && genStatus == "error") {
+        genResult?.optString("message").orEmpty()
+    } else null
     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.clickable { open = !open }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(summary, style = MaterialTheme.typography.labelMedium)
@@ -435,11 +443,27 @@ private fun ToolCard(m: ChatMessageEntity, onOpenItem: (Long) -> Unit) {
                     Text(stringResource(R.string.chat_image_generating), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
+            if (genError != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    when {
+                        genError == "cancelled" -> stringResource(R.string.chat_image_cancelled)
+                        genError.isNotEmpty() -> stringResource(R.string.chat_image_failed_reason, genError)
+                        else -> stringResource(R.string.chat_image_failed)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             genImagePath?.let { path ->
                 val f = File(path)
                 if (f.exists()) {
                     Spacer(Modifier.height(4.dp))
-                    io.github.taehunkim.malbotdari.ui.common.LocalPhoto(f, modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).clip(RoundedCornerShape(8.dp)))
+                    io.github.taehunkim.malbotdari.ui.common.LocalPhoto(
+                        f,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).clip(RoundedCornerShape(8.dp)),
+                        inSampleSize = 1,
+                    )
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
                         AssistChip(
                             onClick = {
@@ -471,7 +495,7 @@ private fun ToolCard(m: ChatMessageEntity, onOpenItem: (Long) -> Unit) {
                         modifier = Modifier.clickable { onOpenItem(o.optLong("item_id")) }.padding(vertical = 2.dp),
                     )
                 }
-                if (found.isEmpty() && noteRead == null) Text(m.text.take(400), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (found.isEmpty() && noteRead == null && m.toolName != ChatToolNames.GENERATE_IMAGE) Text(m.text.take(400), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

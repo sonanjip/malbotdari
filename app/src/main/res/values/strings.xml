@@ -83,6 +83,9 @@
     <string name="chat_tool_generate_image">Generate images</string>
     <string name="chat_tool_ran_generate_image">Generated image: “%1$s”</string>
     <string name="chat_image_generating">Generating image…</string>
+    <string name="chat_image_failed">Image generation failed</string>
+    <string name="chat_image_failed_reason">Image generation failed: %1$s</string>
+    <string name="chat_image_cancelled">Image generation cancelled</string>
     <string name="chat_image_save">Save image</string>
     <string name="chat_image_saved">Saved to gallery</string>
     <string name="chat_image_save_failed">Failed to save image</string>

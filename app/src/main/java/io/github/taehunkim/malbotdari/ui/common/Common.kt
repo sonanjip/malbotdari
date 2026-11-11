@@ -79,13 +79,13 @@ fun RemoteThumb(itemId: Long, kind: String?, modifier: Modifier = Modifier) {
 
 private const val THUMB_PX = 256
 
-/** A photo the user attached (stored in this app's files), decoded small. */
+/** A photo stored in this app's files, decoded with [inSampleSize] (4 for small thumbnails, 1 for full-res previews). */
 @Composable
-fun LocalPhoto(file: java.io.File, modifier: Modifier = Modifier) {
-    val bitmap by produceState<ImageBitmap?>(null, file) {
+fun LocalPhoto(file: java.io.File, modifier: Modifier = Modifier, inSampleSize: Int = 4) {
+    val bitmap by produceState<ImageBitmap?>(null, file, inSampleSize) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                val o = BitmapFactory.Options().apply { inSampleSize = 4 }
+                val o = BitmapFactory.Options().apply { this.inSampleSize = inSampleSize.coerceAtLeast(1) }
                 BitmapFactory.decodeFile(file.path, o)?.asImageBitmap()
             }.getOrNull()
         }

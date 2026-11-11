@@ -148,26 +148,65 @@ class ModelHost(
         }
     }
 
+    sealed interface ImageGenResult {
+        data class Success(val pngBytes: ByteArray) : ImageGenResult
+        data class Failure(val message: String) : ImageGenResult
+    }
+
+    @Volatile private var lastChatLease: HostLease? = null
+    @Volatile private var lastChatCloseMs: Long = 0L
+
     val imageGenReady: Boolean
         get() = imageGenOverride != null || _state.value.ready(Categories.IMAGE_GEN)
 
     /** Test hook for [generateImage]. */
     var imageGenOverride: (suspend (String, Long) -> ByteArray?)? = null
 
+    /** Awaits any pending chat lease release so OndolSaem can evict the LLM before loading another heavy model. */
+    private suspend fun awaitChatReleased() {
+        val lease = lastChatLease ?: return
+        lastChatLease = null
+        val elapsedBeforeClose = System.currentTimeMillis() - lastChatCloseMs
+        lease.closeAndWait()
+        // Give older OndolSaem builds a moment for their internal release coroutine to update holders before trim().
+        if (lastChatCloseMs == 0L || elapsedBeforeClose < 100L) kotlinx.coroutines.delay(50)
+    }
+
+    /**
+     * OndolSaem's image generation model: returns PNG bytes for [prompt] with [seed], or the failure reason.
+     */
+    suspend fun generateImageResult(prompt: String, seed: Long = 0L): ImageGenResult {
+        imageGenOverride?.let { fn ->
+            return try {
+                val bytes = fn(prompt, seed)
+                if (bytes != null) ImageGenResult.Success(bytes) else ImageGenResult.Failure("Image generation failed.")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ImageGenResult.Failure(e.message ?: e.javaClass.simpleName)
+            }
+        }
+        awaitChatReleased()
+        return try {
+            if (!client.supports(OndolSaem.Api.V4)) {
+                ImageGenResult.Failure("OndolSaem update required (API 4+).")
+            } else {
+                ImageGenResult.Success(client.generateImage(prompt, seed, OndolSaem.PRIORITY_INTERACTIVE))
+            }
+        } catch (e: HostCallException) {
+            Log.i(TAG, "image generation failed: ${e.code} ${e.message}")
+            ImageGenResult.Failure(e.message?.takeIf { it.isNotBlank() } ?: "Error code ${e.code}")
+        } catch (e: HostUnavailableException) {
+            Log.i(TAG, "image generation unavailable: ${e.reason} ${e.message}")
+            ImageGenResult.Failure(e.message?.takeIf { it.isNotBlank() } ?: e.reason.name)
+        }
+    }
+
     /**
      * OndolSaem's image generation model: returns PNG bytes for [prompt] with [seed], or null when unavailable.
      */
-    suspend fun generateImage(prompt: String, seed: Long = 0L): ByteArray? {
-        imageGenOverride?.let { return it(prompt, seed) }
-        return try {
-            if (!client.supports(OndolSaem.Api.V4)) null
-            else client.generateImage(prompt, seed, OndolSaem.PRIORITY_INTERACTIVE)
-        } catch (e: HostCallException) {
-            Log.i(TAG, "image generation failed: ${e.code} ${e.message}"); null
-        } catch (e: HostUnavailableException) {
-            Log.i(TAG, "image generation unavailable: ${e.reason}"); null
-        }
-    }
+    suspend fun generateImage(prompt: String, seed: Long = 0L): ByteArray? =
+        (generateImageResult(prompt, seed) as? ImageGenResult.Success)?.pngBytes
 
     private suspend fun hostLease(category: String): HostLease? = try {
         client.acquire(category)
@@ -182,8 +221,12 @@ class ModelHost(
         chatOverride?.let { f -> return f()?.let { m -> Lease(m) { } } }
         val lease = hostLease(Categories.LLM) ?: return null
         val info = known(Categories.LLM)
-        if (info == null || !info.ready) { lease.close(); return null }
-        return Lease(RemoteChatModel(client, info, scope)) { lease.close() }
+        if (info == null || !info.ready) { lease.closeAndWait(); return null }
+        lastChatLease = lease
+        return Lease(RemoteChatModel(client, info, scope)) {
+            lastChatCloseMs = System.currentTimeMillis()
+            lease.close()
+        }
     }
 
     /** The chat history was edited: drop the host's cached conversation. */
